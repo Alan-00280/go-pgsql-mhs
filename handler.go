@@ -32,21 +32,6 @@ func translateErr(c *fiber.Ctx, err error, generalMessage string) error {
 	}
 }
 
-func findUserIdx(id int) int {
-	for i := range students {
-		if students[i].ID == id {
-			return i
-		}
-	}
-	return -1
-}
-
-func findMatch(s model.Student, key string) bool {
-	key = strings.ToLower(key)
-	return strings.Contains(strings.ToLower(s.Name), key) ||
-		strings.Contains(strings.ToLower(s.NIM), key)
-}
-
 func paramID(c *fiber.Ctx) (int, bool) {
 	id, err := strconv.Atoi(c.Params("id"))
 

@@ -55,7 +55,7 @@ func buildFilter(q model.ListQuery) (string, []any) {
 	args := []any{}
 
 	if q.Search != "" {
-		where += fmt.Sprintf(" AND (username ILIKE $%d OR email ILIKE $%d)",
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR nim ILIKE $%d)",
 			len(args)+1, len(args)+1)
 		args = append(args, "%"+q.Search+"%")
 	}
