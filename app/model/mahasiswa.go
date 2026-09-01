@@ -1,4 +1,4 @@
-package main
+package model
 
 const MAX_GRADE = 4.00
 const NIM_LENGTH = 9
