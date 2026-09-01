@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
+	"github.com/Alan-00280/go-pgsql-mhs.git/config"
+	"github.com/Alan-00280/go-pgsql-mhs.git/database"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -29,6 +32,17 @@ func requireJSON(c *fiber.Ctx) error {
 }
 
 func main() {
+	// Load ENV
+	config.LoadEnv()
+
+	// Create DB Pool
+	pool, err := database.NewPool(context.Background())
+	if err != nil {
+		fmt.Printf("Err: %v", err)
+		return
+	}
+	defer pool.Close()
+
 	app := fiber.New(fiber.Config{
 		AppName: "api-students",
 		ErrorHandler: func(c *fiber.Ctx, err error) error {

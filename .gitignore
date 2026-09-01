@@ -1,1 +1,30 @@
+# Compiled binaries and packages
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# Output directories 
+bin/
+pkg/
+out/
+dist/
+
+# Test and coverage artifacts
+*.out
+*.coverprofile
+coverage.txt
+profile.cov
+
+# Go Workspace file
+# (Keep tracked if your team shares a workspace, but usually ignored)
+go.work
+go.work.sum
+
+# Environment variables and secrets
 .env
+.env.*
+!.env.example

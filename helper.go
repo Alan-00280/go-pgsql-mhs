@@ -4,19 +4,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
 	"github.com/gofiber/fiber/v2"
 )
 
 func ok(c *fiber.Ctx, message string, data any) error {
-	return c.Status(fiber.StatusOK).JSON(WebResponse{
+	return c.Status(fiber.StatusOK).JSON(model.WebResponse{
 		Success: true,
 		Message: message,
 		Data:    data,
 	})
 }
 
-func okList(c *fiber.Ctx, message string, data any, meta *Meta) error {
-	return c.Status(fiber.StatusOK).JSON(WebResponse{
+func okList(c *fiber.Ctx, message string, data any, meta *model.Meta) error {
+	return c.Status(fiber.StatusOK).JSON(model.WebResponse{
 		Success: true,
 		Message: message,
 		Data:    data,
@@ -26,7 +27,7 @@ func okList(c *fiber.Ctx, message string, data any, meta *Meta) error {
 
 func created(c *fiber.Ctx, message string, data any, location string) error {
 	c.Set("Location", location)
-	return c.Status(fiber.StatusCreated).JSON(WebResponse{
+	return c.Status(fiber.StatusCreated).JSON(model.WebResponse{
 		Success: true,
 		Message: message,
 		Data:    data,
@@ -34,7 +35,7 @@ func created(c *fiber.Ctx, message string, data any, location string) error {
 }
 
 func failValidation(c *fiber.Ctx, errors map[string]string) error {
-	return c.Status(fiber.StatusUnprocessableEntity).JSON(WebResponse{
+	return c.Status(fiber.StatusUnprocessableEntity).JSON(model.WebResponse{
 		Success: true,
 		Message: "validation fail",
 		Errors:  errors,
@@ -42,7 +43,7 @@ func failValidation(c *fiber.Ctx, errors map[string]string) error {
 }
 
 func fail(c *fiber.Ctx, status int, message string) error {
-	return c.Status(status).JSON(WebResponse{
+	return c.Status(status).JSON(model.WebResponse{
 		Success: false,
 		Message: message,
 	})
@@ -59,8 +60,8 @@ var allowedSort = map[string]bool{
 	"grade": true,
 }
 
-func parseListQuery(c *fiber.Ctx) ListQuery {
-	q := ListQuery{
+func parseListQuery(c *fiber.Ctx) model.ListQuery {
+	q := model.ListQuery{
 		Page:   c.QueryInt("page"),
 		Limit:  c.QueryInt("limit"),
 		Search: strings.TrimSpace(c.Query("search")),
@@ -92,9 +93,9 @@ func parseListQuery(c *fiber.Ctx) ListQuery {
 		}
 	}
 
-	gradeFilter := GradeFilter{
+	gradeFilter := model.GradeFilter{
 		StartGrade: 0.00,
-		EndGrade:   MAX_GRADE,
+		EndGrade:   model.MAX_GRADE,
 	}
 
 	if gd_st := c.Query("grade_start"); gd_st != "" {
