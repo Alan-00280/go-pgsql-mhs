@@ -6,11 +6,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
 	"github.com/gofiber/fiber/v2"
 )
 
-var students []model.Student
+var students []Student
 var nextID = 1
 
 func findUserIdx(id int) int {
@@ -22,7 +21,7 @@ func findUserIdx(id int) int {
 	return -1
 }
 
-func findMatch(s model.Student, key string) bool {
+func findMatch(s Student, key string) bool {
 	key = strings.ToLower(key)
 	return strings.Contains(strings.ToLower(s.Name), key) ||
 		strings.Contains(strings.ToLower(s.NIM), key)
@@ -41,7 +40,7 @@ func paramID(c *fiber.Ctx) (int, bool) {
 // GET - List Students with filter and search
 func listStudents(c *fiber.Ctx) error {
 	q := parseListQuery(c)
-	result := []model.Student{}
+	result := []Student{}
 
 	// filter & search
 	for _, s := range students {
@@ -95,7 +94,7 @@ func listStudents(c *fiber.Ctx) error {
 		end = total
 	}
 
-	return okList(c, "daftar Mahasiswa berhasil diambil", result[start:end], &model.Meta{
+	return okList(c, "daftar Mahasiswa berhasil diambil", result[start:end], &Meta{
 		Page:       q.Page,
 		Limit:      q.Limit,
 		Total:      total,
@@ -121,7 +120,7 @@ func getStudent(c *fiber.Ctx) error {
 // POST - Create a Student
 func createStudent(c *fiber.Ctx) error {
 	// PARSE
-	var req model.CreateStudentReq
+	var req CreateStudentReq
 	if err := c.BodyParser(&req); err != nil {
 		return fail(c, fiber.StatusBadRequest, "Data JSON Invalid")
 	}
@@ -134,7 +133,7 @@ func createStudent(c *fiber.Ctx) error {
 	if len(req.Name) < 3 {
 		errs["name"] = "Nama harus lebih dari 3 karakter"
 	}
-	if len(req.NIM) != model.NIM_LENGTH {
+	if len(req.NIM) != NIM_LENGTH {
 		errs["nim"] = "NIM harus memiliki panjang 9 karakter"
 	}
 	for _, s := range students {
@@ -142,7 +141,7 @@ func createStudent(c *fiber.Ctx) error {
 			return fail(c, fiber.StatusConflict, "NIM telah terdaftar")
 		}
 	}
-	if req.Grade > model.MAX_GRADE || req.Grade < 0.00 {
+	if req.Grade > MAX_GRADE || req.Grade < 0.00 {
 		errs["grade"] = "Nilai melebihi rentang 0.00 - 4.00"
 	}
 
@@ -151,7 +150,7 @@ func createStudent(c *fiber.Ctx) error {
 	}
 
 	// CREATE
-	newStudent := model.Student{
+	newStudent := Student{
 		ID:       nextID,
 		NIM:      req.NIM,
 		Name:     req.Name,
@@ -169,7 +168,7 @@ func createStudent(c *fiber.Ctx) error {
 // PUT - Replace a Student Data
 func replaceStudent(c *fiber.Ctx) error {
 	// PARSE
-	var req model.ReplaceStudentReq
+	var req ReplaceStudentReq
 	if err := c.BodyParser(&req); err != nil {
 		return fail(c, fiber.StatusBadRequest, "Data JSON Invalid")
 	}
@@ -191,7 +190,7 @@ func replaceStudent(c *fiber.Ctx) error {
 	if len(req.Name) < 3 {
 		errs["name"] = "Nama harus lebih dari 3 karakter"
 	}
-	if req.Grade > model.MAX_GRADE || req.Grade < 0.00 {
+	if req.Grade > MAX_GRADE || req.Grade < 0.00 {
 		errs["grade"] = "Nilai melebihi rentang 0.00 - 4.00"
 	}
 
@@ -213,7 +212,7 @@ func replaceStudent(c *fiber.Ctx) error {
 // PATCH - Update a Student Data
 func patchStudent(c *fiber.Ctx) error {
 	// PARSE
-	var req model.PatchStudentReq
+	var req PatchStudentReq
 	if err := c.BodyParser(&req); err != nil {
 		return fail(c, fiber.StatusBadRequest, "Data JSON Invalid")
 	}
@@ -254,7 +253,7 @@ func patchStudent(c *fiber.Ctx) error {
 	if req.Grade != nil {
 		errs := map[string]string{}
 
-		if *req.Grade > model.MAX_GRADE || *req.Grade < 0.00 {
+		if *req.Grade > MAX_GRADE || *req.Grade < 0.00 {
 			errs["grade"] = "Nilai melebihi rentang 0.00 - 4.00"
 		}
 

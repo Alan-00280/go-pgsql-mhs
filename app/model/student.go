@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 const MAX_GRADE = 4.00
 const NIM_LENGTH = 9
 
@@ -12,11 +14,12 @@ type WebResponse struct {
 }
 
 type Student struct {
-	ID       int     `json:"id"`
-	NIM      string  `json:"nim"`
-	Name     string  `json:"name"`
-	Grade    float64 `json:"grade"`
-	IsActive bool    `json:"is_active"`
+	ID        int        `json:"id"`
+	NIM       string     `json:"nim"`
+	Name      string     `json:"name"`
+	Grade     float64    `json:"grade"`
+	IsActive  bool       `json:"is_active"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 // POST - For Creating Student
@@ -60,4 +63,8 @@ type ListQuery struct {
 	Order    string
 	IsActive *bool
 	*GradeFilter
+}
+
+func (q ListQuery) Offset() int {
+	return (q.Page - 1) * q.Limit
 }

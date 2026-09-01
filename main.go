@@ -71,6 +71,19 @@ func main() {
 		return ok(c, "Health Check - Server OK!", fiber.Map{"timestamp": time.Now()})
 	})
 
+    api.Get("/health", func(c *fiber.Ctx) error {
+        ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+        defer cancel()
+
+        if err := pool.Ping(ctx); err != nil {
+			// ERR 503 - Service Unavailable
+            return fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
+        }
+
+        return ok(c, "server and database is OK!", nil)
+    })
+
+
 	// App Handlers
 	student := api.Group("/students", requireJSON)
 	student.Get("/", listStudents)

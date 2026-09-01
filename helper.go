@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
 	"github.com/gofiber/fiber/v2"
@@ -113,3 +115,8 @@ func parseListQuery(c *fiber.Ctx) model.ListQuery {
 
 	return q
 }
+
+func reqCtx(c *fiber.Ctx) (context.Context, context.CancelFunc) {
+    return context.WithTimeout(c.UserContext(), 5*time.Second)
+}
+
