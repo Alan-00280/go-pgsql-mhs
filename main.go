@@ -104,5 +104,5 @@ func main() {
 	// Run
 	port := "3000"
 	fmt.Printf("Server running in %s... \n", port)
-	log.Fatal(app.Listen("127.0.0.1:" + port))
+	log.Fatal(app.Listen("localhost:" + port))
 }

@@ -18,13 +18,12 @@ var (
 )
 
 func isUniqueViolation(err error) bool {
-    var pgErr *pgconn.PgError
-    if errors.As(err, &pgErr) {
-        return pgErr.Code == "23505"
-    }
-    return false
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
 }
-
 
 type StudentRepository interface {
 	FindAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error)
@@ -87,7 +86,7 @@ func (r *StudentPGRepository) FindAll(
 	where, args := buildFilter(q)
 
 	var total int
-	if err := r.pool.QueryRow(ctx, "SELECT (*) FROM students"+where, args...).Scan(&total); err != nil {
+	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM students"+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("[ERROR] count total students: %w", err)
 	}
 
@@ -133,7 +132,7 @@ func (r *StudentPGRepository) FindById(
 	var s model.Student
 
 	if err := r.pool.QueryRow(ctx,
-		"SELECT id, nim, name, grade, is_active, created_at FROM students %s WHERE id = $1",
+		"SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1", id,
 	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
@@ -147,16 +146,16 @@ func (r *StudentPGRepository) FindById(
 func (r *StudentPGRepository) Create(
 	ctx context.Context, s model.Student,
 ) (model.Student, error) {
-    if err := r.pool.QueryRow(ctx,
-        `INSERT INTO students (nim, name, grade, is_active)
+	if err := r.pool.QueryRow(ctx,
+		`INSERT INTO students (nim, name, grade, is_active)
          VALUES ($1, $2, $3, $4)
          RETURNING id, created_at`,
-        s.NIM, s.Name, s.Grade, s.IsActive,
-    ).Scan(&s.ID, &s.CreatedAt); err != nil {
-        if isUniqueViolation(err) {
-            return model.Student{}, ErrDuplicate
-        }
-        return model.Student{}, fmt.Errorf("[ERROR] can't store student: %w", err)
+		s.NIM, s.Name, s.Grade, s.IsActive,
+	).Scan(&s.ID, &s.CreatedAt); err != nil {
+		if isUniqueViolation(err) {
+			return model.Student{}, ErrDuplicate
+		}
+		return model.Student{}, fmt.Errorf("[ERROR] can't store student: %w", err)
 
 	}
 
@@ -166,36 +165,35 @@ func (r *StudentPGRepository) Create(
 func (r *StudentPGRepository) Update(
 	ctx context.Context, s model.Student,
 ) (model.Student, error) {
-    if err := r.pool.QueryRow(ctx,
-        `UPDATE students SET nim = $1, name = $2, grade = $3 is_active = $4
+	if err := r.pool.QueryRow(ctx,
+		`UPDATE students SET nim = $1, name = $2, grade = $3, is_active = $4
          WHERE id = $5
          RETURNING id, nim, name, grade, is_active, created_at`,
-        s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
-    ).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); 
-	err != nil {
-        if errors.Is(err, pgx.ErrNoRows) {
-            return model.Student{}, ErrNotFound
-        }
-        if isUniqueViolation(err) {
-            return model.Student{}, ErrDuplicate
-        }
-        return model.Student{}, fmt.Errorf("[ERROR] can't update student: %w", err)
-    }
- 
+		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.Student{}, ErrNotFound
+		}
+		if isUniqueViolation(err) {
+			return model.Student{}, ErrDuplicate
+		}
+		return model.Student{}, fmt.Errorf("[ERROR] can't update student: %w", err)
+	}
+
 	return s, nil
 }
 
 func (r *StudentPGRepository) Delete(
 	ctx context.Context, id int,
 ) error {
-    tag, err := r.pool.Exec(ctx, `DELETE FROM students WHERE id = $1`, id)
-    if err != nil {
-        return fmt.Errorf("[ERROR] can't delete student: %w", err)
-    }
- 
-    if tag.RowsAffected() == 0 {
-        return ErrNotFound
-    }
+	tag, err := r.pool.Exec(ctx, `DELETE FROM students WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("[ERROR] can't delete student: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
 
 	return nil
 }
