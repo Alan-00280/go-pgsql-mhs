@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Alan-00280/go-pgsql-mhs.git/app/repository"
 	"github.com/Alan-00280/go-pgsql-mhs.git/config"
 	"github.com/Alan-00280/go-pgsql-mhs.git/database"
 	"github.com/gofiber/fiber/v2"
@@ -71,27 +72,29 @@ func main() {
 		return ok(c, "Health Check - Server OK!", fiber.Map{"timestamp": time.Now()})
 	})
 
-    api.Get("/health", func(c *fiber.Ctx) error {
-        ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
-        defer cancel()
+	api.Get("/health", func(c *fiber.Ctx) error {
+		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+		defer cancel()
 
-        if err := pool.Ping(ctx); err != nil {
+		if err := pool.Ping(ctx); err != nil {
 			// ERR 503 - Service Unavailable
-            return fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
-        }
+			return fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
+		}
 
-        return ok(c, "server and database is OK!", nil)
-    })
-
+		return ok(c, "server and database is OK!", nil)
+	})
 
 	// App Handlers
 	student := api.Group("/students", requireJSON)
-	student.Get("/", listStudents)
-	student.Get("/:id", getStudent)
-	student.Post("/", createStudent)
-	student.Put("/:id", replaceStudent)
-	student.Patch("/:id", patchStudent)
-	student.Delete("/:id", deleteStudent)
+	studentRepo := repository.NewStudentRepository(pool)
+	studentHandler := NewStudentHandler(studentRepo)
+
+	student.Get("/", studentHandler.List)
+	student.Get("/:id", studentHandler.Get)
+	student.Post("/", studentHandler.Create)
+	student.Put("/:id", studentHandler.Replace)
+	student.Patch("/:id", studentHandler.Patch)
+	student.Delete("/:id", studentHandler.Delete)
 
 	// 404
 	app.Use(func(c *fiber.Ctx) error {
