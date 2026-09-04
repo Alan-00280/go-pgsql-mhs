@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gopkg.in/lumberjack.v2"
 )
@@ -39,6 +40,12 @@ func NewLogger() *slog.Logger {
 	writer := io.MultiWriter(os.Stdout, rotator)
 	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{
 		Level: parseLevel(GetEnv("LOG_LEVEL", "info")),
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == "time" {
+				return slog.String("time", time.Now().Format(time.UnixDate))
+			}
+			return a
+		},
 	})
 
 	logger := slog.New(handler)

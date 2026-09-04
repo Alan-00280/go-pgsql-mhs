@@ -3,37 +3,24 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/repository"
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/service"
 	"github.com/Alan-00280/go-pgsql-mhs.git/config"
 	"github.com/Alan-00280/go-pgsql-mhs.git/database"
-	"github.com/Alan-00280/go-pgsql-mhs.git/middleware"
-	"github.com/gofiber/fiber/v2"
 )
-
-// var bodiedMethod = map[string]bool{
-// 	fiber.MethodPost:  true,
-// 	fiber.MethodPut:   true,
-// 	fiber.MethodPatch: true,
-// }
-
-// func requireJSON(c *fiber.Ctx) error {
-// 	if bodiedMethod[c.Method()] {
-// 		ct := c.Get("Content-Type")
-// 		if !strings.HasPrefix(ct, fiber.MIMEApplicationJSON) {
-// 			return fail(c, fiber.StatusUnsupportedMediaType, "Content-Type harus application/json")
-// 		}
-// 	}
-// 	return c.Next()
-// }
 
 func main() {
 	// Load ENV
 	config.LoadEnv()
+
+	// Logger Config
+	logger := config.NewLogger()
 
 	// Create DB Pool
 	pool, err := database.NewPool(context.Background())
@@ -43,50 +30,35 @@ func main() {
 	}
 	defer pool.Close()
 
-	app := fiber.New(fiber.Config{
-		AppName: "api-students",
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			status := fiber.StatusInternalServerError
-			message := "terjadi kesalahan pada server"
-
-			if e, ok := err.(*fiber.Error); ok {
-				status = e.Code
-				message = e.Message
-			}
-
-			return fail(c, status, message)
-		},
-	})
-
-	// Global Middleware
-	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})
-	middleware.Register(app, slog.New(logHandler))
-
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World!")
-	})
-
-	// App Handlers
-	student := api.Group("/students", middleware.RequireJSON)
+	// Repo -> Services
 	studentRepo := repository.NewStudentRepository(pool)
-	studentHandler := service.NewStudentHandler(studentRepo)
+	studentService := service.NewStudentHandler(studentRepo)
 
-	student.Get("/", studentHandler.List)
-	student.Get("/:id", studentHandler.Get)
-	student.Post("/", studentHandler.Create)
-	student.Put("/:id", studentHandler.Replace)
-	student.Patch("/:id", studentHandler.Patch)
-	student.Delete("/:id", studentHandler.Delete)
+	// APP
+	app := config.NewApp(logger, pool, studentService)
+	port := config.GetEnv("APP_PORT", "3000")
 
-	// 404
-	app.Use(func(c *fiber.Ctx) error {
-		return fail(c, fiber.StatusNotFound, "404 - Route not found")
-	})
+	// run
+	go func() {
+		if err := app.Listen(":" + port); err != nil {
+			logger.Error("server stopped! ", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+	logger.Info("server running...", slog.String("port", port))
 
-	// Run
-	port := "3000"
-	fmt.Printf("Server running in %s... \n", port)
-	log.Fatal(app.Listen("localhost:" + port))
+	// gracefull shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server . . .")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := app.ShutdownWithContext(ctx); err != nil {
+		logger.Error("fail to shutdown system! ", slog.String("error", err.Error()))
+	}
+
+	logger.Info("server shutted down")
 }
