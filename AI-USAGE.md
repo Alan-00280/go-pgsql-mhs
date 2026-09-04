@@ -1,5 +1,30 @@
 # AI Usage Log
 
+## Session 2 - Logger Configuration Refactoring (2026-09-04)
+
+### Objective
+Merapikan konfigurasi logger HTTP agar hanya menggunakan implementasi middleware yang aktif dan menghapus konfigurasi Fiber logger yang tidak terpasang.
+
+### Activities Completed
+
+#### 1. Logger Configuration Refactoring - `main.go`
+**Task:** Menghubungkan logger `slog` yang dikonfigurasi secara eksplisit ke middleware aplikasi.
+
+**Changes Applied:**
+- Menghapus konfigurasi `github.com/gofiber/fiber/v2/middleware/logger` yang hanya dibuat sebagai variabel lokal dan tidak digunakan.
+- Menghapus import middleware dan `strings` yang hanya terkait kode lama/commented-out.
+- Membuat `slog.TextHandler` ke `os.Stdout` dengan level minimum `INFO`.
+- Meneruskan instance `slog.Logger` ke `middleware.Register`, yang kemudian digunakan oleh `RequestLogger`.
+
+**Rationale:**
+- Mencegah konfigurasi logger yang membingungkan dan tidak pernah dipasang ke Fiber.
+- Mempertahankan logging request terstruktur yang sudah mencatat request ID, method, path, status, durasi, dan IP.
+- Menjadikan output logger dan level logging dapat dikonfigurasi dari satu titik di `main.go`.
+
+### Validation
+- Pemeriksaan diagnostik editor pada `main.go` tidak menemukan error.
+- `gofmt` dan `go test ./...` belum dijalankan karena eksekusi terminal dilewati.
+
 ## Session 1 - Database Migration & Model Refactoring (2026-09-01)
 
 ### Objective

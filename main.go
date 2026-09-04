@@ -4,33 +4,32 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
-	"time"
+	"log/slog"
+	"os"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/repository"
+	"github.com/Alan-00280/go-pgsql-mhs.git/app/service"
 	"github.com/Alan-00280/go-pgsql-mhs.git/config"
 	"github.com/Alan-00280/go-pgsql-mhs.git/database"
+	"github.com/Alan-00280/go-pgsql-mhs.git/middleware"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
 )
 
-var bodiedMethod = map[string]bool{
-	fiber.MethodPost:  true,
-	fiber.MethodPut:   true,
-	fiber.MethodPatch: true,
-}
+// var bodiedMethod = map[string]bool{
+// 	fiber.MethodPost:  true,
+// 	fiber.MethodPut:   true,
+// 	fiber.MethodPatch: true,
+// }
 
-func requireJSON(c *fiber.Ctx) error {
-	if bodiedMethod[c.Method()] {
-		ct := c.Get("Content-Type")
-		if !strings.HasPrefix(ct, fiber.MIMEApplicationJSON) {
-			return fail(c, fiber.StatusUnsupportedMediaType, "Content-Type harus application/json")
-		}
-	}
-	return c.Next()
-}
+// func requireJSON(c *fiber.Ctx) error {
+// 	if bodiedMethod[c.Method()] {
+// 		ct := c.Get("Content-Type")
+// 		if !strings.HasPrefix(ct, fiber.MIMEApplicationJSON) {
+// 			return fail(c, fiber.StatusUnsupportedMediaType, "Content-Type harus application/json")
+// 		}
+// 	}
+// 	return c.Next()
+// }
 
 func main() {
 	// Load ENV
@@ -60,34 +59,19 @@ func main() {
 	})
 
 	// Global Middleware
-	app.Use(requestid.New())
-	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${locals:requestid} ${method} ${path} ${status} ${latency}\n",
-	}))
-	app.Use(cors.New())
-
-	// API v1 //
-	api := app.Group("/api/v1")
-	api.Get("/", func(c *fiber.Ctx) error {
-		return ok(c, "Health Check - Server OK!", fiber.Map{"timestamp": time.Now()})
+	logHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
 	})
+	middleware.Register(app, slog.New(logHandler))
 
-	api.Get("/health", func(c *fiber.Ctx) error {
-		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
-		defer cancel()
-
-		if err := pool.Ping(ctx); err != nil {
-			// ERR 503 - Service Unavailable
-			return fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
-		}
-
-		return ok(c, "server and database is OK!", nil)
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Hello, World!")
 	})
 
 	// App Handlers
-	student := api.Group("/students", requireJSON)
+	student := api.Group("/students", middleware.RequireJSON)
 	studentRepo := repository.NewStudentRepository(pool)
-	studentHandler := NewStudentHandler(studentRepo)
+	studentHandler := service.NewStudentHandler(studentRepo)
 
 	student.Get("/", studentHandler.List)
 	student.Get("/:id", studentHandler.Get)
