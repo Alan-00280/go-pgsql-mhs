@@ -19,6 +19,13 @@ dist/
 coverage.txt
 profile.cov
 
+# logs
+**/logs/
+**/log/
+logs/
+log/
+*.log
+
 # Go Workspace file
 # (Keep tracked if your team shares a workspace, but usually ignored)
 go.work
