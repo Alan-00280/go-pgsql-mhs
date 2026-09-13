@@ -65,7 +65,7 @@ func (r *UserPGRepository) FindAll(ctx context.Context, q model.ListQuery) ([]mo
 	}
 
 	sqlText := fmt.Sprintf(
-		`SELECT id, username, email, is_active, created_at FROM users %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, where, sortColumnUser[q.Order], direction, len(args)+1, len(args)+2,
+		`SELECT id, username, email, role, is_active, created_at FROM users %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, where, sortColumnUser[q.Order], direction, len(args)+1, len(args)+2,
 	)
 	args = append(args, q.Limit, q.Offset())
 
@@ -77,7 +77,7 @@ func (r *UserPGRepository) FindAll(ctx context.Context, q model.ListQuery) ([]mo
 	result := []model.User{}
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.IsActive, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.IsActive, &u.CreatedAt); err != nil {
 			return nil, 0, fmt.Errorf("[ERROR] can't scan rows from users: %w", err)
 		}
 		result = append(result, u)
@@ -93,7 +93,7 @@ func (r *UserPGRepository) FindAll(ctx context.Context, q model.ListQuery) ([]mo
 func (r *UserPGRepository) FindByID(ctx context.Context, id int) (model.User, error) {
 	result := model.User{}
 
-	if err := r.pool.QueryRow(ctx, "SELECT id, username, email, is_active, created_at FROM users WHERE id = $1", id).Scan(&result.ID, &result.Username, &result.Email, &result.IsActive, &result.CreatedAt); err != nil {
+	if err := r.pool.QueryRow(ctx, "SELECT id, username, email, role, is_active, created_at FROM users WHERE id = $1", id).Scan(&result.ID, &result.Username, &result.Email, &result.Role, &result.IsActive, &result.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.User{}, ErrNotFound
 		}
@@ -105,7 +105,7 @@ func (r *UserPGRepository) FindByID(ctx context.Context, id int) (model.User, er
 }
 
 func (r *UserPGRepository) Create(ctx context.Context, u model.User) (model.User, error) {
-	if err := r.pool.QueryRow(ctx, "INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, created_at", u.Username, u.Email, u.Password).Scan(&u.ID, &u.CreatedAt); err != nil {
+	if err := r.pool.QueryRow(ctx, "INSERT INTO users (username, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, created_at", u.Username, u.Email, u.Password, u.Role).Scan(&u.ID, &u.CreatedAt); err != nil {
 		if isUniqueViolation(err) {
 			return model.User{}, ErrDuplicate
 		}
@@ -141,3 +141,25 @@ func (r *UserPGRepository) Delete(ctx context.Context, id int) error {
 
 	return nil
 }
+
+func (r *UserPGRepository) FindByUsername(
+    ctx context.Context, username string,
+) (model.User, error) {
+    var u model.User
+ 
+    err := r.pool.QueryRow(ctx,
+        `SELECT id, username, email, password, role, is_active, created_at
+         FROM users WHERE LOWER(username) = LOWER($1)`, username,
+    ).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.Role,
+        &u.IsActive, &u.CreatedAt)
+ 
+    if err != nil {
+        if errors.Is(err, pgx.ErrNoRows) {
+            return model.User{}, ErrNotFound
+        }
+        return model.User{}, fmt.Errorf("mengambil user: %w", err)
+    }
+ 
+    return u, nil
+}
+

@@ -87,7 +87,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 	}
 
 	return helper.Created(c, "user berhasil dibuat", baru,
-		"/api/v1/users/"+strconv.Itoa(baru.ID))
+		"/api/v1/students/"+strconv.Itoa(baru.ID))
 }
 
 // PUT - Replace an entire student data
