@@ -5,13 +5,6 @@ import "time"
 const MAX_GRADE = 4.00
 const NIM_LENGTH = 9
 
-type WebResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Data    any    `json:"data"`
-	Meta    *Meta  `json:"meta,omitempty"`
-	Errors  any    `json:"errors,omitempty"`
-}
 
 type Student struct {
 	ID        int        `json:"id"`
@@ -43,26 +36,9 @@ type PatchStudentReq struct {
 	IsActive *bool    `json:"is_active,omitempty"`
 }
 
-type Meta struct {
-	Page       int `json:"page"`
-	Limit      int `json:"limit"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
-}
-
 type GradeFilter struct {
 	StartGrade float64
 	EndGrade   float64
-}
-
-type ListQuery struct {
-	Page     int
-	Limit    int
-	Search   string
-	Sort     string
-	Order    string
-	IsActive *bool
-	*GradeFilter
 }
 
 func (q ListQuery) Offset() int {

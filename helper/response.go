@@ -33,7 +33,7 @@ func Created(c *fiber.Ctx, message string, data any, location string) error {
 
 func FailValidation(c *fiber.Ctx, errors map[string]string) error {
 	return c.Status(fiber.StatusUnprocessableEntity).JSON(model.WebResponse{
-		Success: true,
+		Success: false,
 		Message: "validation fail",
 		Errors:  errors,
 	})

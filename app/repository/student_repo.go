@@ -33,7 +33,7 @@ type StudentRepository interface {
 	Delete(ctx context.Context, id int) error
 }
 
-var sortColumn = map[string]string{
+var sortColumnStudent = map[string]string{
 	"id":         "id",
 	"nim":        "nim",
 	"name":       "name",
@@ -50,7 +50,7 @@ func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
 }
 
 // Args builder (WHERE ...)
-func buildFilter(q model.ListQuery) (string, []any) {
+func buildFilterStudent(q model.ListQuery) (string, []any) {
 	where := " WHERE 1=1"
 	args := []any{}
 
@@ -83,7 +83,7 @@ func buildFilter(q model.ListQuery) (string, []any) {
 func (r *StudentPGRepository) FindAll(
 	ctx context.Context, q model.ListQuery,
 ) ([]model.Student, int, error) {
-	where, args := buildFilter(q)
+	where, args := buildFilterStudent(q)
 
 	var total int
 	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM students"+where, args...).Scan(&total); err != nil {
@@ -100,7 +100,7 @@ func (r *StudentPGRepository) FindAll(
 		FROM students %s
 		ORDER BY %s %s 
 		LIMIT $%d OFFSET $%d`,
-		where, sortColumn[q.Sort], direction, len(args)+1, len(args)+2,
+		where, sortColumnStudent[q.Sort], direction, len(args)+1, len(args)+2,
 	)
 	args = append(args, q.Limit, q.Offset())
 

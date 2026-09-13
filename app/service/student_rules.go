@@ -6,7 +6,7 @@ import (
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
 )
 
-func ValidateCreate(req model.CreateStudentReq) map[string]string {
+func ValidateCreateStudent(req model.CreateStudentReq) map[string]string {
 	errs := map[string]string{}
 
 	if len(req.Name) < 3 {
@@ -22,7 +22,7 @@ func ValidateCreate(req model.CreateStudentReq) map[string]string {
 	return errs
 }
 
-func ValidateReplace(req model.ReplaceStudentReq) map[string]string {
+func ValidateReplaceStudent(req model.ReplaceStudentReq) map[string]string {
 	errs := map[string]string{}
 
 	if len(req.Name) < 3 {
@@ -35,14 +35,14 @@ func ValidateReplace(req model.ReplaceStudentReq) map[string]string {
 	return errs
 }
 
-func ValidatePatch(current model.Student, req model.PatchStudentReq) (model.Student, map[string]string) {
+func ValidatePatchStudent(current model.Student, req model.PatchStudentReq) (model.Student, map[string]string) {
 	errs := map[string]string{}
 
 	if req.Name != nil {
 		*req.Name = strings.TrimSpace(*req.Name)
 
 		if len(*req.Name) < 3 {
-			errs["name"] = "Nama harus lebih dari 3 karakter"
+			errs["name"] = "Nama minimal 3 karakter"
 		} else {
 			current.Name = *req.Name
 		}
@@ -63,7 +63,7 @@ func ValidatePatch(current model.Student, req model.PatchStudentReq) (model.Stud
 	return current, errs
 }
 
-func IsEmptyPatch(req model.PatchStudentReq) bool {
+func IsEmptyPatchStudent(req model.PatchStudentReq) bool {
 	return req.IsActive == nil && req.Grade == nil && req.Name == nil
 }
 

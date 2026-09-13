@@ -69,7 +69,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 	req.Name = strings.TrimSpace(req.Name)
 
 	// VALIDATION
-	if errs := ValidateCreate(req); len(errs) > 0 {
+	if errs := ValidateCreateStudent(req); len(errs) > 0 {
 		return helper.FailValidation(c, errs)
 	}
 
@@ -106,7 +106,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 	}
 
 	// VALIDATE
-	if errs := ValidateReplace(req); len(errs) > 0 {
+	if errs := ValidateReplaceStudent(req); len(errs) > 0 {
 		return helper.FailValidation(c, errs)
 	}
 
@@ -136,7 +136,7 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
 	}
 
-	if IsEmptyPatch(req) {
+	if IsEmptyPatchStudent(req) {
 		return helper.Fail(c, fiber.StatusBadRequest, "no data changed")
 	}
 
@@ -145,7 +145,7 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return translateErr(c, err, "gagal mengambil data user")
 	}
 
-	newStudent, errs := ValidatePatch(student, req)
+	newStudent, errs := ValidatePatchStudent(student, req)
 	if len(errs) > 0 {
 		return helper.FailValidation(c, errs)
 	}
