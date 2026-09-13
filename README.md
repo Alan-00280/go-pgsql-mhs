@@ -197,7 +197,7 @@ DB_MAX_CONNS=10
 ### Development
 
 ```bash
-go run main.go handler.go helper.go
+go run .
 ```
 
 ### Build Release
@@ -520,23 +520,36 @@ var (
 
 ```
 mhs-mgg-tiga/
-├── main.go                          # Entry point
-├── handler.go                       # HTTP handlers
-├── helper.go                        # Helper functions
-├── migrations/
-│   └── 001_create_students.sql     # Database schema
-├── config/
-│   └── env.go                      # Environment configuration
-├── database/
-│   └── postgres.go                 # PostgreSQL connection pool
+├── main.go                          # Entry point dan graceful shutdown
 ├── app/
 │   ├── model/
-│   │   └── mahasiswa.go            # Data models & structs
-│   └── repository/
-│       └── student_repository.go   # Data access layer
+│   │   └── student.go               # Model dan tipe request/query
+│   ├── repository/
+│   │   └── student_repo.go           # Akses data PostgreSQL
+│   └── service/
+│       ├── service_helper.go         # Pemetaan error service
+│       ├── student_rules.go          # Aturan validasi student
+│       └── student_service.go        # HTTP handler dan business logic
+├── config/
+│   ├── app.go                        # Konfigurasi Fiber dan error handler
+│   ├── env.go                        # Environment configuration
+│   └── logger.go                     # Konfigurasi logger
+├── database/
+│   └── postgres.go                   # PostgreSQL connection pool
+├── helper/
+│   ├── request.go                    # Helper parsing request
+│   └── response.go                   # Format response API
+├── middleware/
+│   └── middleware.go                 # Middleware aplikasi
+├── migrations/
+│   └── 001_create_students.sql     # Database schema
+├── route/
+│   └── route.go                     # Registrasi route API
 ├── .env.example                     # Environment template
-├── go.mod                          # Go dependencies
-└── README.md                       # Dokumentasi ini
+├── go.mod                            # Go dependencies
+├── go.sum                            # Dependency checksums
+├── .gitignore                        # File yang diabaikan Git
+└── README.md                         # Dokumentasi ini
 ```
 
 ### 2. Alur Data

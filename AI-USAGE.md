@@ -1,5 +1,26 @@
 # AI Usage Log
 
+## Session 3 - Student Business Rules Tests (2026-09-06)
+
+### Objective
+Membuat unit test untuk seluruh business rules pada `app/service/student_rules.go` berdasarkan pola test contoh yang diberikan.
+
+### Activities Completed
+
+- Membaca `student_rules.go` dan `example-test.go`.
+- Menyesuaikan import serta tipe request dengan model proyek saat ini.
+- Membuat `app/service/student_rules_test.go` tanpa menyalakan server atau mengakses PostgreSQL.
+- Menguji validasi create untuk nama, NIM, dan batas grade.
+- Menguji validasi replace untuk nama dan batas grade.
+- Menguji PATCH untuk update field, trim nama, preservasi nilai ketika input invalid, dan empty patch.
+- Menguji `IsEmptyPatch` serta perhitungan `CountTotalPages`, termasuk limit tidak valid.
+
+### Validation
+
+- Pemeriksaan diagnostik editor pada `student_rules_test.go` tidak menemukan error.
+- Command `gofmt` dan `go test ./...` dicoba, tetapi eksekusinya dilewati oleh environment.
+- File `example-test.go` dihapus karena masih memakai module `latihan-fiber` dan tipe `User` yang tidak ada di project ini; cakupan test contohnya sudah dipindahkan ke `student_rules_test.go`.
+
 ## Session 2 - Logger Configuration Refactoring (2026-09-04)
 
 ### Objective
