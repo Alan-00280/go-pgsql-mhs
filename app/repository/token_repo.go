@@ -31,7 +31,7 @@ type tokenPGRepository struct {
 }
 
 // 3. function menerima *pgxpool.Pool dan mengembalikan interface TokenRepository
-func NewTokenPGRepo(pool *pgxpool.Pool) TokenRepository {
+func NewAuthRepo(pool *pgxpool.Pool) TokenRepository {
 	return &tokenPGRepository{pool: pool}
 }
 

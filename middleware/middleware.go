@@ -33,11 +33,11 @@ func RequestLogger(logger *slog.Logger) fiber.Handler {
 	}
 }
 
-func Register(app *fiber.App, logger *slog.Logger) {
+func Register(app *fiber.App, logger *slog.Logger, allowedOrigin string) {
 	app.Use(requestid.New())
 	app.Use(recover.New())
 	app.Use(helmet.New())
-	app.Use(cors.New())
+	app.Use(corsPolicy(allowedOrigin))
 	app.Use(RequestLogger(logger))
 }
 
@@ -55,4 +55,17 @@ func RequireJSON(c *fiber.Ctx) error {
 		}
 	}
 	return c.Next()
+}
+
+// func corsPolicy(allowedOrigin string) fiber.Handler : membatasi origin pemanggil API
+func corsPolicy(allowedOrigin string) fiber.Handler {
+	if strings.TrimSpace(allowedOrigin) == "" {
+		allowedOrigin = "http://localhost:5173/"
+	}
+
+	return cors.New(cors.Config{
+		AllowOrigins: allowedOrigin,
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+	})
 }

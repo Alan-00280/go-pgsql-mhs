@@ -11,18 +11,43 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Register(app *fiber.App, pool *pgxpool.Pool, studentHandler *service.StudentHandler) {
+type Dependencies struct {
+	Pool           *pgxpool.Pool
+	JWT            *helper.JWTManager
+	StudentHandler *service.StudentHandler
+	AuthHandler    *service.AuthHandler
+	UserHandler    *service.UserHandler
+}
+
+func Register(app *fiber.App, deps Dependencies) {
 	api := app.Group("/api/v1")
 
-	api.Get("/health", healthCheck(pool))
+	// PUBLIK
+	api.Get("/health", healthCheck(deps.Pool))
 
-	student := api.Group("/students", middleware.RequireJSON)
-	student.Get("/", studentHandler.List)
-	student.Get("/:id", studentHandler.Get)
-	student.Post("/", studentHandler.Create)
-	student.Put("/:id", studentHandler.Replace)
-	student.Patch("/:id", studentHandler.Patch)
-	student.Delete("/:id", studentHandler.Delete)
+	// AUTHENTICATION
+	auth := api.Group("/auth", middleware.RequireJSON)
+	auth.Post("/register", deps.AuthHandler.Register)
+	auth.Post("/login", middleware.LoginRateLimiter(), deps.AuthHandler.Login)
+	auth.Post("/refresh", deps.AuthHandler.Refresh)
+	auth.Post("/logout", deps.AuthHandler.Logout)
+	auth.Get("/me", middleware.RequireAuth(deps.JWT), deps.AuthHandler.Me)
+
+	// PROTECTED
+	user := api.Group("/users", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	user.Get("/", deps.UserHandler.ListAll)
+	user.Get("/:id", deps.UserHandler.Get)
+	user.Post("/", deps.UserHandler.Create)
+	user.Patch("/:id", deps.UserHandler.Patch)
+	user.Delete("/:id", deps.UserHandler.Delete)
+
+	student := api.Group("/students", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	student.Get("/", deps.StudentHandler.List)
+	student.Get("/:id", deps.StudentHandler.Get)
+	student.Post("/", deps.StudentHandler.Create)
+	student.Put("/:id", deps.StudentHandler.Replace)
+	student.Patch("/:id", deps.StudentHandler.Patch)
+	student.Delete("/:id", deps.StudentHandler.Delete)
 }
 
 func healthCheck(pool *pgxpool.Pool) fiber.Handler {

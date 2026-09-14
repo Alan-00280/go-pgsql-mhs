@@ -19,13 +19,13 @@ import (
 // buat konstanta refreshTokenByte = 32
 const refreshTokenByte = 32
 
-// buat struct AuthService dengan atribut
+// buat struct AuthHandler dengan atribut
 //
 //	users      repository.UserRepository
 //	tokens     repository.TokenRepository
 //	jwt        *helper.JWTManager
 //	refreshTTL time.Duration
-type AuthService struct {
+type AuthHandler struct {
 	users      repository.UserRepository
 	tokens     repository.TokenRepository
 	jwt        *helper.JWTManager
@@ -38,8 +38,8 @@ func NewAuthHandler(
 	tokens repository.TokenRepository,
 	jwt *helper.JWTManager,
 	refreshTTL time.Duration,
-) *AuthService {
-	return &AuthService{
+) *AuthHandler {
+	return &AuthHandler{
 		users:      users,
 		tokens:     tokens,
 		jwt:        jwt,
@@ -54,7 +54,7 @@ func NewAuthHandler(
 // func (s *AuthService) Register() error :
 //
 //	ambil ctx, check body JSON pakai c.BodyParser, trimspace username email, check validasi, hash password, panggil s.users.Create(), kembalikan helper.Created
-func (s *AuthService) Register(c *fiber.Ctx) error {
+func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
@@ -96,7 +96,7 @@ func (s *AuthService) Register(c *fiber.Ctx) error {
 // func (s *AuthService) Login() error :
 //
 //	ambil ctx, cek body JSON, validasi, panggil s.users.FindByUsername(), helper.VerifyPassword, check is active, buat token pair, kembalikan helper.Success bersama token pair
-func (s *AuthService) Login(c *fiber.Ctx) error {
+func (s *AuthHandler) Login(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
@@ -135,7 +135,7 @@ func (s *AuthService) Login(c *fiber.Ctx) error {
 // func (s *AuthService) Refresh() error :
 //
 //	ambil ctx, cek body JSON, cek string token, panggil findActive() pakai token, ambil user, Revoke(), issueTokenPair(), return helper.Success
-func (s *AuthService) Refresh(c *fiber.Ctx) error {
+func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
@@ -174,7 +174,7 @@ func (s *AuthService) Refresh(c *fiber.Ctx) error {
 // func (s *AuthService) Logout() error :
 //
 //	ambil ctx, cek body JSON, cek refreshToken, Revoke Token, return helper.Success
-func (s *AuthService) Logout(c *fiber.Ctx) error {
+func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
@@ -193,7 +193,7 @@ func (s *AuthService) Logout(c *fiber.Ctx) error {
 // func (s *AuthService)  Me() error :
 //
 //	ambil ctx, ambil current user pakai helper function, return helper.success dengan user
-func (s *AuthService) Me(c *fiber.Ctx) error {
+func (s *AuthHandler) Me(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
@@ -213,7 +213,7 @@ func (s *AuthService) Me(c *fiber.Ctx) error {
 // func (s *AuthService) issueTokenPair(*fiber.Ctx, model.User) (model.TokenPair, error) :
 //
 //	generate accesstoken jwt.generateAccess(), generate refresh token use helper function, token.Save ini ngesave refresh token, return model.TokenPair
-func (s *AuthService) issueTokenPair(ctx context.Context, user model.User) (model.TokenPair, error) {
+func (s *AuthHandler) issueTokenPair(ctx context.Context, user model.User) (model.TokenPair, error) {
 	acces_token, err := s.jwt.GenerateAccessToken(user)
 	if err != nil {
 		return model.TokenPair{}, nil

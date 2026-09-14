@@ -1,5 +1,29 @@
 # AI Usage Log
 
+## Session 4 - Authentication Rules Test & Validation Debugging (2026-09-14)
+
+### Objective
+Membuat unit test untuk validasi auth (`ValidateRegister`, `ValidateLogin`, dan `checkPasswordStrength`) serta mendiagnosa bug yang muncul saat pengujian.
+
+### Activities Completed
+
+- Membaca `app/service/auth_rules.go` dan `app/model/auth.go` untuk memastikan format request dan aturan validasi yang benar.
+- Mencocokkan pola test dengan project yang sudah ada di `app/service/student_rules_test.go`.
+- Menulis file baru `app/service/auth_rules_test.go` untuk kasus valid, invalid, dan kombinasi error pada username, email, serta password.
+- Menjalankan `go test ./app/service` untuk verifikasi cepat.
+- Mendeteksi root cause pada `checkPasswordStrength`: nilai `hasLetter` dan `hasDigit` di-reset ke `false` setiap iterasi karakter, sehingga password valid seperti `Password1` selalu gagal validasi.
+- Menetapkan fix yang benar dengan memeriksa apakah password minimal mengandung satu huruf dan satu angka selama iterasi.
+
+### Validation
+
+- Command: `cd 'd:\programs\unair\backend_lanjut\mhs-mgg-tiga'; go test ./app/service`
+- Hasil yang teramati: exit code 1, karena bug validasi password yang sedang diperiksa pada saat itu.
+- Output menunjukkan password valid `Password1` ditolak karena logika validasi salah, bukan karena file test yang salah.
+
+### Notes
+- Aktivitas ini fokus pada pengujian perilaku nyata validator, bukan sekadar mock atau asumsi.
+- Tujuan akhir adalah memastikan test auth mencerminkan aturan bisnis yang sebenarnya di `auth_rules.go`.
+
 ## Session 3 - Student Business Rules Tests (2026-09-06)
 
 ### Objective
