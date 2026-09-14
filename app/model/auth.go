@@ -21,7 +21,7 @@ type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
-	ExpiredIn    string `json:"expired_in"` // in seconds
+	ExpiredIn    int    `json:"expired_in"` // in seconds
 }
 
 type RefreshToken struct {
