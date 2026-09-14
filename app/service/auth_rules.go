@@ -69,22 +69,22 @@ func ValidateLogin(req model.LoginReq) map[string]string {
 // isValidEmail(email string) bool
 
 func checkPasswordStrength(password string) string {
-	if len(password) < 8 {
+	if len(password) < minPasswordLength {
 		return "minimum 8 character of password"
 	}
 
-	var hasLetter, hasDigit bool
+	var hasLetter, hasDigit bool = false, false
 	for _, c := range password {
 		switch {
-		case !unicode.IsLetter(c):
-			hasLetter = false
-		case !unicode.IsDigit(c):
-			hasDigit = false
+		case unicode.IsLetter(c):
+			hasLetter = true
+		case unicode.IsDigit(c):
+			hasDigit = true
 		}
 	}
 
 	if !hasLetter || !hasDigit {
-		return "passsword must contain mix of characters and numbers"
+		return "passsword must contain mix of letter and numbers"
 	}
 
 	file, err := os.Open("../../files/common_password.txt")
