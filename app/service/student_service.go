@@ -169,7 +169,7 @@ func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	if err := h.repo.Delete(ctx, id); err != nil {
-		return translateErr(c, err, "gagal menghapus user")
+		return translateErr(c, err, "gagal menghapus student")
 	}
 
 	return helper.NoContent(c)
