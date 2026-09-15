@@ -66,7 +66,7 @@ func LoginRateLimiter() fiber.Handler {
 			return c.IP()
 		},
 		LimitReached: func(c *fiber.Ctx) error {
-			c.Set("Retry-After (s)", "60")
+			// c.Set("Retry-After (s)", "60")
 			return helper.Fail(c, fiber.StatusTooManyRequests, "terlalu banyak percobaan login")
 		},
 	})

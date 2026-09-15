@@ -52,7 +52,7 @@ func NewAuthHandler(
 
 // --- METHODS ---
 // func (s *AuthService) Register() error :
-//
+//  POST /auth/register
 //	ambil ctx, check body JSON pakai c.BodyParser, trimspace username email, check validasi, hash password, panggil s.users.Create(), kembalikan helper.Created
 func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
@@ -94,7 +94,7 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Login() error :
-//
+//  POST /auth/loign
 //	ambil ctx, cek body JSON, validasi, panggil s.users.FindByUsername(), helper.VerifyPassword, check is active, buat token pair, kembalikan helper.Success bersama token pair
 func (s *AuthHandler) Login(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
@@ -133,7 +133,7 @@ func (s *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Refresh() error :
-//
+//  POST /auth/refresh
 //	ambil ctx, cek body JSON, cek string token, panggil findActive() pakai token, ambil user, Revoke(), issueTokenPair(), return helper.Success
 func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
@@ -172,7 +172,7 @@ func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Logout() error :
-//
+//  POST /auth/logout
 //	ambil ctx, cek body JSON, cek refreshToken, Revoke Token, return helper.Success
 func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
@@ -191,7 +191,7 @@ func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService)  Me() error :
-//
+//  GET /auth/me
 //	ambil ctx, ambil current user pakai helper function, return helper.success dengan user
 func (s *AuthHandler) Me(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
