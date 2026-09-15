@@ -34,7 +34,7 @@ func RandomToken(numBytes int) (string, error) {
 	buf := make([]byte, numBytes)
 
 	if _, err := rand.Read(buf); err != nil {
-		return "", nil
+		return "", err
 	}
 
 	return hex.EncodeToString(buf), nil

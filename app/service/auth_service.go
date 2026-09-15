@@ -84,7 +84,7 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicate) {
-			return helper.Fail(c, fiber.StatusConflict, "terjadi kesalahan. mohon tunggu beberapa waktu")
+			return helper.Fail(c, fiber.StatusConflict, "username telah terdaftar")
 		}
 
 		return helper.Fail(c, fiber.StatusInternalServerError, "terjadi kesalahan. mohon tunggu beberapa waktu")
@@ -151,7 +151,7 @@ func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 	hash := helper.SHA256Hex(req.RefreshToken)
 	refresh_token, err := s.tokens.FindActive(ctx, hash)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusUnauthorized, "token tidak valid / kedaluarwsa")
+		return helper.Fail(c, fiber.StatusUnauthorized, "token refresh tidak valid / kedaluarwsa")
 	}
 
 	user, err := s.users.FindByID(ctx, refresh_token.UserID)
@@ -183,7 +183,7 @@ func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusBadRequest, "JSON invalid!")
 	}
 
-	if strings.TrimSpace(req.RefreshToken) == "" {
+	if strings.TrimSpace(req.RefreshToken) != "" {
 		_ = s.tokens.Revoke(ctx, helper.SHA256Hex(req.RefreshToken))
 	}
 
@@ -216,12 +216,12 @@ func (s *AuthHandler) Me(c *fiber.Ctx) error {
 func (s *AuthHandler) issueTokenPair(ctx context.Context, user model.User) (model.TokenPair, error) {
 	acces_token, err := s.jwt.GenerateAccessToken(user)
 	if err != nil {
-		return model.TokenPair{}, nil
+		return model.TokenPair{}, err
 	}
 
 	refresh_token, err := helper.RandomToken(refreshTokenByte)
 	if err != nil {
-		return model.TokenPair{}, nil
+		return model.TokenPair{}, err
 	}
 
 	if err := s.tokens.Save(ctx, model.RefreshToken{
@@ -229,7 +229,7 @@ func (s *AuthHandler) issueTokenPair(ctx context.Context, user model.User) (mode
 		TokenHash: helper.SHA256Hex(refresh_token),
 		ExpiredAt: time.Now().Add(s.refreshTTL),
 	}); err != nil {
-		return model.TokenPair{}, nil
+		return model.TokenPair{}, err
 	}
 
 	return model.TokenPair{

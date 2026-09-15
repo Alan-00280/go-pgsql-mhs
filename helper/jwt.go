@@ -53,7 +53,7 @@ func (m *JWTManager) GenerateAccessToken(u model.User) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(m.secret)
 	if err != nil {
 		return "", fmt.Errorf("can't create token: %w", err)

@@ -9,6 +9,9 @@ import (
 func ValidateCreateStudent(req model.CreateStudentReq) map[string]string {
 	errs := map[string]string{}
 
+	req.Name = strings.TrimSpace(req.Name)
+	req.NIM = strings.TrimSpace(req.NIM)
+
 	if len(req.Name) < 3 {
 		errs["name"] = "Nama harus lebih dari 3 karakter"
 	}

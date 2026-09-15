@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"net/mail"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -87,7 +88,12 @@ func checkPasswordStrength(password string) string {
 		return "passsword must contain mix of letter and numbers"
 	}
 
-	file, err := os.Open("../../files/common_password.txt")
+	password_path, err := filepath.Abs("./files/common_password.txt")
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.Open(password_path)
 	if err != nil {
 		panic(err)
 	}

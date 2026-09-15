@@ -1,5 +1,31 @@
 # AI Usage Log
 
+## Session 5 - Debugging Login Token Pair (2026-09-15)
+
+### Objective
+Memeriksa mengapa endpoint `Login()` mengembalikan JSON dengan struktur `model.TokenPair`, tetapi seluruh value token kosong.
+
+### Activities Completed
+
+- Menelusuri alur `Login()` ke `issueTokenPair()` dan `helper.JWTManager.GenerateAccessToken()`.
+- Menemukan bahwa `issueTokenPair()` mengembalikan `model.TokenPair{}` bersama `nil` error ketika pembuatan JWT, random refresh token, atau penyimpanan token gagal.
+- Menemukan ketidaksesuaian algoritma JWT: token dibuat dengan `ES256` menggunakan secret `[]byte`, sedangkan parser mengharapkan algoritma HMAC.
+- Mengubah algoritma signing JWT menjadi `HS256` agar sesuai dengan secret string dan proses parsing.
+- Memperbaiki `issueTokenPair()` agar semua error diteruskan ke `Login()` dan tidak lagi menghasilkan response sukses dengan token kosong.
+- Memperbaiki `helper.RandomToken()` agar error dari `crypto/rand` tidak disembunyikan.
+- Menyesuaikan repository refresh token dengan migration `003_auth.sql`: tabel `refresh_tokens`, kolom `expires_at`, query pencarian token aktif, serta query revoke.
+
+### Validation
+
+- Pemeriksaan diagnostik editor pada `auth_service.go`, `helper/jwt.go`, `helper/security.go`, dan `app/repository/token_repo.go` tidak menemukan error.
+- Command `go test ./...` disiapkan untuk verifikasi, tetapi eksekusinya dilewati oleh environment.
+- Verifikasi runtime melalui Postman masih perlu dilakukan setelah aplikasi dijalankan ulang dan migration auth dipastikan sudah diterapkan.
+
+### Notes
+
+- Sebelum perbaikan, error token tertutup oleh return `nil`, sehingga `Login()` mengirim HTTP sukses dengan object token kosong.
+- Setelah perbaikan, kegagalan pembuatan atau penyimpanan token akan menghasilkan response error server sehingga penyebabnya dapat ditelusuri.
+
 ## Session 4 - Authentication Rules Test & Validation Debugging (2026-09-14)
 
 ### Objective
