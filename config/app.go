@@ -3,12 +3,10 @@ package config
 import (
 	"log/slog"
 
-	"github.com/Alan-00280/go-pgsql-mhs.git/app/service"
 	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
 	"github.com/Alan-00280/go-pgsql-mhs.git/middleware"
 	"github.com/Alan-00280/go-pgsql-mhs.git/route"
 	"github.com/gofiber/fiber/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func newErrorHandler(logger *slog.Logger) fiber.ErrorHandler {
@@ -32,20 +30,20 @@ func newErrorHandler(logger *slog.Logger) fiber.ErrorHandler {
 	}
 }
 
-func NewApp(logger *slog.Logger, pool *pgxpool.Pool, studentService *service.StudentHandler) *fiber.App {
+func NewApp(logger *slog.Logger, deps route.Dependencies) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:      GetEnv("APP_NAME", "api-backend"),
 		ErrorHandler: newErrorHandler(logger),
 	})
 
 	// Middleware
-	middleware.Register(app, logger)
+	middleware.Register(app, logger, GetEnv("ALLOWED_ORIGINS", "http://localhost:5173/"))
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Hello, World!")
 	})
 
 	// App Routes
-	route.Register(app, pool, studentService)
+	route.Register(app, deps)
 
 	// 404
 	app.Use(func(c *fiber.Ctx) error {

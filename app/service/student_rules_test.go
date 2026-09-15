@@ -40,7 +40,7 @@ func TestValidateCreate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateCreate(test.req), test.want)
+			assertErrorKeys(t, ValidateCreateStudent(test.req), test.want)
 		})
 	}
 }
@@ -69,7 +69,7 @@ func TestValidateReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateReplace(test.req), test.want)
+			assertErrorKeys(t, ValidateReplaceStudent(test.req), test.want)
 		})
 	}
 }
@@ -95,15 +95,15 @@ func TestValidatePatch(t *testing.T) {
 			want: model.Student{ID: 1, NIM: "123456789", Name: "Jane Doe", Grade: 3.75, IsActive: false},
 		},
 		{
-			name: "invalid name keeps current value",
-			req:  model.PatchStudentReq{Name: &invalidName},
-			want: model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true},
+			name:       "invalid name keeps current value",
+			req:        model.PatchStudentReq{Name: &invalidName},
+			want:       model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true},
 			wantErrors: []string{"name"},
 		},
 		{
-			name: "invalid grade keeps current value",
-			req:  model.PatchStudentReq{Grade: &invalidGrade},
-			want: model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true},
+			name:       "invalid grade keeps current value",
+			req:        model.PatchStudentReq{Grade: &invalidGrade},
+			want:       model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true},
 			wantErrors: []string{"grade"},
 		},
 		{
@@ -116,7 +116,7 @@ func TestValidatePatch(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			current := model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true}
-			got, errs := ValidatePatch(current, test.req)
+			got, errs := ValidatePatchStudent(current, test.req)
 
 			if got != test.want {
 				t.Errorf("student mismatch: got %+v, want %+v", got, test.want)
@@ -129,10 +129,10 @@ func TestValidatePatch(t *testing.T) {
 func TestIsEmptyPatch(t *testing.T) {
 	grade := 3.50
 
-	if !IsEmptyPatch(model.PatchStudentReq{}) {
+	if !IsEmptyPatchStudent(model.PatchStudentReq{}) {
 		t.Error("empty patch should be detected")
 	}
-	if IsEmptyPatch(model.PatchStudentReq{Grade: &grade}) {
+	if IsEmptyPatchStudent(model.PatchStudentReq{Grade: &grade}) {
 		t.Error("patch with a field should not be detected as empty")
 	}
 }

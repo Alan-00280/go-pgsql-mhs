@@ -1,5 +1,55 @@
 # AI Usage Log
 
+## Session 5 - Debugging Login Token Pair (2026-09-15)
+
+### Objective
+Memeriksa mengapa endpoint `Login()` mengembalikan JSON dengan struktur `model.TokenPair`, tetapi seluruh value token kosong.
+
+### Activities Completed
+
+- Menelusuri alur `Login()` ke `issueTokenPair()` dan `helper.JWTManager.GenerateAccessToken()`.
+- Menemukan bahwa `issueTokenPair()` mengembalikan `model.TokenPair{}` bersama `nil` error ketika pembuatan JWT, random refresh token, atau penyimpanan token gagal.
+- Menemukan ketidaksesuaian algoritma JWT: token dibuat dengan `ES256` menggunakan secret `[]byte`, sedangkan parser mengharapkan algoritma HMAC.
+- Mengubah algoritma signing JWT menjadi `HS256` agar sesuai dengan secret string dan proses parsing.
+- Memperbaiki `issueTokenPair()` agar semua error diteruskan ke `Login()` dan tidak lagi menghasilkan response sukses dengan token kosong.
+- Memperbaiki `helper.RandomToken()` agar error dari `crypto/rand` tidak disembunyikan.
+- Menyesuaikan repository refresh token dengan migration `003_auth.sql`: tabel `refresh_tokens`, kolom `expires_at`, query pencarian token aktif, serta query revoke.
+
+### Validation
+
+- Pemeriksaan diagnostik editor pada `auth_service.go`, `helper/jwt.go`, `helper/security.go`, dan `app/repository/token_repo.go` tidak menemukan error.
+- Command `go test ./...` disiapkan untuk verifikasi, tetapi eksekusinya dilewati oleh environment.
+- Verifikasi runtime melalui Postman masih perlu dilakukan setelah aplikasi dijalankan ulang dan migration auth dipastikan sudah diterapkan.
+
+### Notes
+
+- Sebelum perbaikan, error token tertutup oleh return `nil`, sehingga `Login()` mengirim HTTP sukses dengan object token kosong.
+- Setelah perbaikan, kegagalan pembuatan atau penyimpanan token akan menghasilkan response error server sehingga penyebabnya dapat ditelusuri.
+
+## Session 4 - Authentication Rules Test & Validation Debugging (2026-09-14)
+
+### Objective
+Membuat unit test untuk validasi auth (`ValidateRegister`, `ValidateLogin`, dan `checkPasswordStrength`) serta mendiagnosa bug yang muncul saat pengujian.
+
+### Activities Completed
+
+- Membaca `app/service/auth_rules.go` dan `app/model/auth.go` untuk memastikan format request dan aturan validasi yang benar.
+- Mencocokkan pola test dengan project yang sudah ada di `app/service/student_rules_test.go`.
+- Menulis file baru `app/service/auth_rules_test.go` untuk kasus valid, invalid, dan kombinasi error pada username, email, serta password.
+- Menjalankan `go test ./app/service` untuk verifikasi cepat.
+- Mendeteksi root cause pada `checkPasswordStrength`: nilai `hasLetter` dan `hasDigit` di-reset ke `false` setiap iterasi karakter, sehingga password valid seperti `Password1` selalu gagal validasi.
+- Menetapkan fix yang benar dengan memeriksa apakah password minimal mengandung satu huruf dan satu angka selama iterasi.
+
+### Validation
+
+- Command: `cd 'd:\programs\unair\backend_lanjut\mhs-mgg-tiga'; go test ./app/service`
+- Hasil yang teramati: exit code 1, karena bug validasi password yang sedang diperiksa pada saat itu.
+- Output menunjukkan password valid `Password1` ditolak karena logika validasi salah, bukan karena file test yang salah.
+
+### Notes
+- Aktivitas ini fokus pada pengujian perilaku nyata validator, bukan sekadar mock atau asumsi.
+- Tujuan akhir adalah memastikan test auth mencerminkan aturan bisnis yang sebenarnya di `auth_rules.go`.
+
 ## Session 3 - Student Business Rules Tests (2026-09-06)
 
 ### Objective

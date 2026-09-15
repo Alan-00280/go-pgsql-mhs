@@ -13,7 +13,11 @@ import (
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/service"
 	"github.com/Alan-00280/go-pgsql-mhs.git/config"
 	"github.com/Alan-00280/go-pgsql-mhs.git/database"
+	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
+	"github.com/Alan-00280/go-pgsql-mhs.git/route"
 )
+
+const minJwtSecretLength = 32
 
 func main() {
 	// Load ENV
@@ -21,6 +25,13 @@ func main() {
 
 	// Logger Config
 	logger := config.NewLogger()
+
+	// JWT Secret
+	jwtSecret := config.GetEnv("JWT_SECRET", "")
+	if len(jwtSecret) < minJwtSecretLength {
+		logger.Error("jwt secret isn't valid please check again", slog.Int("min length:", minJwtSecretLength))
+		os.Exit(1)
+	}
 
 	// Create DB Pool
 	pool, err := database.NewPool(context.Background())
@@ -30,12 +41,38 @@ func main() {
 	}
 	defer pool.Close()
 
+	// JWT Manager
+	jwtManager := helper.NewJWTManager(
+		jwtSecret,
+		config.GetEnv("JWT_ISSUER", "be-prak"),
+		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
+	)
+
 	// Repo -> Services
+	userRepo := repository.NewUserRepository(pool)
+	userService := service.NewUserHandler(userRepo)
+
+	authRepo := repository.NewAuthRepo(pool)
+	authService := service.NewAuthHandler(
+		userRepo,
+		authRepo,
+		jwtManager,
+		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
+	)
+
 	studentRepo := repository.NewStudentRepository(pool)
 	studentService := service.NewStudentHandler(studentRepo)
 
+	deps := route.Dependencies{
+		Pool:           pool,
+		JWT:            jwtManager,
+		UserHandler:    userService,
+		AuthHandler:    authService,
+		StudentHandler: studentService,
+	}
+
 	// APP
-	app := config.NewApp(logger, pool, studentService)
+	app := config.NewApp(logger, deps)
 	port := config.GetEnv("APP_PORT", "3000")
 
 	// run

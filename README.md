@@ -1,176 +1,107 @@
 # API Students - PostgreSQL Backend
 
-API REST untuk manajemen data mahasiswa (students) dengan backend PostgreSQL. Aplikasi ini memindahkan penyimpanan data dari memori lokal ke basis data PostgreSQL dengan mempertahankan seluruh perilaku HTTP.
+REST API berbasis Go, Fiber, dan PostgreSQL untuk autentikasi user serta pengelolaan data mahasiswa.
 
 ## Daftar Isi
 
 - [Prasyarat](#prasyarat)
-- [Skema Tabel Database](#skema-tabel-database)
-- [Setup Database](#setup-database)
-- [Instalasi & Konfigurasi](#instalasi--konfigurasi)
-- [Environment Variables](#environment-variables)
+- [Struktur Database](#struktur-database)
+- [Instalasi dan Konfigurasi](#instalasi-dan-konfigurasi)
 - [Menjalankan Aplikasi](#menjalankan-aplikasi)
+- [Format Response](#format-response)
+- [Autentikasi](#autentikasi)
 - [API Endpoints](#api-endpoints)
-- [Error Handling](#error-handling)
-- [Penjelasan Desain](#penjelasan-desain)
-
----
+- [Validasi dan Error](#validasi-dan-error)
+- [Testing](#testing)
+- [Struktur Project](#struktur-project)
 
 ## Prasyarat
 
-- **Go** 1.21 atau lebih baru
-- **PostgreSQL** 12 atau lebih baru
-- **Git** (untuk clone repository)
+- Go 1.21 atau lebih baru
+- PostgreSQL
+- Git
 
----
+## Struktur Database
 
-## Skema Tabel Database
+Database tidak dibuat atau dimigrasikan otomatis oleh aplikasi. Jalankan migration secara berurutan.
 
-### Tabel: `students`
-
-```sql
-CREATE TABLE IF NOT EXISTS students (
-    id SERIAL PRIMARY KEY,
-    nim CHAR(9) NOT NULL UNIQUE,
-    name VARCHAR(255) NOT NULL,
-    grade NUMERIC(3, 2) NOT NULL CHECK (grade >= 0 AND grade <= 4.00),
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Deskripsi Kolom
-
-| Kolom | Tipe | Batasan | Deskripsi |
-|-------|------|---------|-----------|
-| `id` | SERIAL | PRIMARY KEY | Unique identifier, auto-increment |
-| `nim` | CHAR(9) | NOT NULL, UNIQUE | Nomor Induk Mahasiswa (wajib unik) |
-| `name` | VARCHAR(255) | NOT NULL | Nama mahasiswa |
-| `grade` | NUMERIC(3,2) | 0.00 - 4.00 | IPK (Indeks Prestasi Kumulatif) |
-| `is_active` | BOOLEAN | DEFAULT true | Status aktivitas mahasiswa |
-| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP | Waktu pembuatan record |
-
-### Indeks
-
-| Indeks | Tipe | Kolom | Tujuan |
-|--------|------|-------|--------|
-| `PRIMARY KEY` | Clustered | `id` | Identifikasi unik setiap record |
-| `idx_students_nim` | B-tree | `nim` | Mempercepat pencarian berdasarkan NIM |
-| `idx_students_is_active` | B-tree | `is_active` | Optimasi filter mahasiswa aktif/tidak aktif |
-| `idx_students_is_active_created_at` | B-tree | `is_active, created_at DESC` | Mendukung query filtering + sorting by created_at |
-
-### Penjelasan Keunikan NIM (UNIQUE Constraint)
-
-**Mengapa dijaga di database daripada di kode Go?**
-
-1. **Data Integrity**: Constraint UNIQUE di database menjamin integritas data secara mutlak, tidak peduli aplikasi mana yang mengakses database.
-2. **Mencegah Race Condition**: Jika dua request POST datang bersamaan dengan NIM yang sama:
-   - Tanpa constraint: kedua request mungkin lolos validasi Go, lalu keduanya disimpan
-   - Dengan constraint: database akan menolak yang kedua dengan `ErrDuplicate`
-3. **Source of Truth**: Database adalah satu-satunya sumber kebenaran untuk integritas data
-4. **Konsistensi**: Mencegah inkonsistensi jika ada aplikasi lain yang juga mengakses database
-
----
-
-## Setup Database
-
-### 1. Membuat Database Baru
+### Migration
 
 ```bash
-# Login ke PostgreSQL
-psql -U postgres
-
-# Di dalam psql shell:
-CREATE DATABASE mhs_mgg_tiga;
-```
-
-### 2. Menjalankan Migrasi
-
-```bash
-# Masuk ke database
 psql -U postgres -d mhs_mgg_tiga -f migrations/001_create_students.sql
+psql -U postgres -d mhs_mgg_tiga -f migrations/002_create_users.sql
+psql -U postgres -d mhs_mgg_tiga -f migrations/003_auth.sql
 ```
 
-Atau dari aplikasi Go, skema akan otomatis dibuat saat startup jika belum ada:
+### Tabel `students`
 
-```sql
--- Migrasi akan membuat:
--- - Tabel students dengan semua kolom dan batasan
--- - Indeks untuk optimasi query
-```
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | SERIAL | Primary key |
+| `nim` | CHAR(9) | Wajib, unik, panjang 9 karakter |
+| `name` | VARCHAR(255) | Nama mahasiswa |
+| `grade` | NUMERIC(3,2) | Nilai antara 0.00 dan 4.00 |
+| `is_active` | BOOLEAN | Default `true` |
+| `created_at` | TIMESTAMP | Default waktu saat record dibuat |
 
-### 3. Verifikasi Struktur
+Index yang dibuat: `idx_students_nim`, `idx_students_is_active`, dan `idx_students_is_active_created_at`.
+
+### Tabel `users`
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| `id` | SERIAL | Primary key |
+| `username` | VARCHAR(50) | Wajib, unik tanpa membedakan huruf besar/kecil |
+| `email` | VARCHAR(255) | Wajib |
+| `password` | VARCHAR(255) | Hash bcrypt, tidak dikirim dalam response |
+| `is_active` | BOOLEAN | Default `true` |
+| `role` | VARCHAR(20) | Default `user` |
+| `created_at` | TIMESTAMPTZ | Default `NOW()` |
+
+Migration `003_auth.sql` juga membuat tabel `refresh_tokens`. Nilai refresh token disimpan dalam bentuk SHA-256 hash, bukan token asli.
+
+| Kolom | Keterangan |
+|---|---|
+| `id` | Primary key |
+| `user_id` | Foreign key ke `users.id` |
+| `token_hash` | Hash refresh token, unik |
+| `expires_at` | Waktu kedaluwarsa |
+| `revoked_at` | Waktu token dicabut, dapat bernilai NULL |
+| `created_at` | Waktu record dibuat |
+
+## Instalasi dan Konfigurasi
 
 ```bash
-# Cek tabel
-\dt
-
-# Cek kolom tabel
-\d students
-
-# Cek indeks
-\di
-```
-
----
-
-## Instalasi & Konfigurasi
-
-### 1. Clone Repository
-
-```bash
-cd d:\programs\unair\backend_lanjut
-git clone <repository-url> mhs-mgg-tiga
+git clone <repository-url>
 cd mhs-mgg-tiga
-```
-
-### 2. Install Dependencies
-
-```bash
 go mod download
-go mod tidy
 ```
 
-Dependencies utama:
-- `github.com/gofiber/fiber/v2` - Framework HTTP
-- `github.com/jackc/pgx/v5` - PostgreSQL driver
-- `github.com/joho/godotenv` - Environment variable loader
+Buat file `.env` pada root project. Aplikasi membaca konfigurasi melalui `godotenv` dan environment sistem.
 
-### 3. Setup Environment Variables
+| Variable | Default | Keterangan |
+|---|---|---|
+| `APP_NAME` | `api-backend` | Nama aplikasi Fiber |
+| `APP_PORT` | `3000` | Port HTTP |
+| `ALLOWED_ORIGINS` | `http://localhost:5173/` | Origin yang diizinkan CORS |
+| `DB_USER` | `postgres` | User PostgreSQL |
+| `DB_PASSWORD` | kosong | Password PostgreSQL |
+| `DB_HOST` | `127.0.0.1` | Host PostgreSQL |
+| `DB_PORT` | `5432` | Port PostgreSQL |
+| `DB_NAME` | `database_name` | Nama database |
+| `DB_SSLMODE` | `disable` | Mode SSL PostgreSQL |
+| `DB_MAX_CONNS` | `10` | Maksimum koneksi pool |
+| `JWT_SECRET` | tidak ada | Secret minimal 32 karakter |
+| `JWT_ISSUER` | `be-prak` | Nilai issuer JWT |
+| `JWT_ACCESS_TTL_MINUTES` | `15` | Masa berlaku access token |
+| `JWT_REFRESH_TTL_DAYS` | `7` | Masa berlaku refresh token |
 
-Copy `.env.example` ke `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` dengan konfigurasi database Anda.
-
----
-
-## Environment Variables
-
-Semua kredensial database disimpan di file `.env`. **Pastikan `.env` tidak ter-commit ke git** dengan menambahkannya ke `.gitignore`:
-
-```
-.env
-```
-
-### Daftar Environment Variables
-
-| Variable | Default | Deskripsi | Contoh |
-|----------|---------|-----------|--------|
-| `DB_USER` | postgres | Username PostgreSQL | postgres |
-| `DB_PASSWORD` | (kosong) | Password PostgreSQL | rahasia123 |
-| `DB_HOST` | 127.0.0.1 | Host database | localhost |
-| `DB_PORT` | 5432 | Port PostgreSQL | 5432 |
-| `DB_NAME` | database_name | Nama database | mhs_mgg_tiga |
-| `DB_SSLMODE` | disable | Mode SSL | disable, require, prefer |
-| `DB_MAX_CONNS` | 10 | Max connection pool | 10 |
-
-### File `.env.example`
+Contoh konfigurasi:
 
 ```env
+APP_NAME=api-backend
+APP_PORT=3000
+ALLOWED_ORIGINS=http://localhost:5173/
 DB_USER=postgres
 DB_PASSWORD=
 DB_HOST=127.0.0.1
@@ -178,58 +109,79 @@ DB_PORT=5432
 DB_NAME=mhs_mgg_tiga
 DB_SSLMODE=disable
 DB_MAX_CONNS=10
+JWT_SECRET=ganti-dengan-secret-minimal-32-karakter
+JWT_ISSUER=be-prak
+JWT_ACCESS_TTL_MINUTES=15
+JWT_REFRESH_TTL_DAYS=7
 ```
 
-### File `.gitignore`
-
-```
-.env
-.env.local
-*.log
-*.out
-/tmp
-```
-
----
+Jangan commit `.env` ke repository.
 
 ## Menjalankan Aplikasi
-
-### Development
 
 ```bash
 go run .
 ```
 
-### Build Release
+Server berjalan pada `http://localhost:3000` secara default. Aplikasi melakukan ping PostgreSQL saat membuat connection pool; jika koneksi gagal, aplikasi tidak dapat berjalan normal.
 
-```bash
-go build -o api-students.exe
-.\api-students.exe
+## Format Response
+
+Response sukses menggunakan bentuk berikut:
+
+```json
+{
+  "success": true,
+  "message": "...",
+  "data": {},
+  "meta": {}
+}
 ```
 
-### Esperansi Output
+`meta` hanya digunakan pada endpoint list. Response validasi memiliki field `errors`:
 
+```json
+{
+  "success": false,
+  "message": "validation fail",
+  "errors": {
+    "field": "pesan error"
+  }
+}
 ```
-Server running in 3000...
+
+## Autentikasi
+
+Endpoint `/auth/register`, `/auth/login`, `/auth/refresh`, dan `/auth/logout` bersifat publik. Endpoint `/auth/me`, `/users`, dan `/students` memerlukan header:
+
+```http
+Authorization: Bearer <access_token>
 ```
 
-Server akan melisten di `http://localhost:3000`
+Access token adalah JWT. Refresh token digunakan pada endpoint `/auth/refresh` untuk memperoleh pasangan token baru. Saat logout, refresh token dapat dikirim untuk dicabut.
 
----
+Semua method `POST`, `PUT`, dan `PATCH` pada route API harus menggunakan:
+
+```http
+Content-Type: application/json
+```
+
+Login memiliki rate limit maksimum 5 request per IP dalam 1 menit. Request tanpa atau dengan format Bearer token yang tidak valid akan menerima status `401 Unauthorized`.
 
 ## API Endpoints
 
-### Base URL: `http://localhost:3000/api/v1`
+Base URL: `http://localhost:3000/api/v1`
 
-### 1. Health Check
+### Health Check
 
 ```http
 GET /health
 ```
 
-**Deskripsi**: Memeriksa status server dan koneksi database
+Endpoint publik untuk memeriksa koneksi database.
 
-**Response (200 OK)**:
+Response berhasil:
+
 ```json
 {
   "success": true,
@@ -238,97 +190,135 @@ GET /health
 }
 ```
 
-**Response (503 Service Unavailable)** - Jika database tidak terhubung:
-```json
+Jika database tidak dapat dihubungi, response berstatus `503` dengan pesan `database can't be reached`.
+
+### Authentication
+
+#### Register
+
+```http
+POST /auth/register
+Content-Type: application/json
+
 {
-  "success": false,
-  "message": "database can't be reached"
+  "username": "john_doe",
+  "email": "john@example.com",
+  "password": "Password1"
 }
 ```
 
----
+Username minimal 3 karakter dan hanya boleh berisi huruf, angka, titik, serta underscore. Password minimal 8 karakter dan harus mengandung huruf serta angka. Username disimpan setelah trim spasi. Response berhasil berstatus `201 Created`.
 
-### 2. Daftar Mahasiswa (dengan filter & pagination)
+#### Login
 
 ```http
-GET /students?page=1&limit=10&search=john&sort=name&order=asc&is_active=true&start_grade=0&end_grade=4.00
-```
+POST /auth/login
+Content-Type: application/json
 
-**Query Parameters**:
-| Param | Tipe | Default | Deskripsi |
-|-------|------|---------|-----------|
-| `page` | int | 1 | Nomor halaman |
-| `limit` | int | 10 (max 100) | Jumlah per halaman |
-| `search` | string | - | Cari di nama atau NIM |
-| `sort` | string | id | Sortir by: `id`, `nim`, `name`, `grade` |
-| `order` | string | asc | Urutan: `asc`, `desc` |
-| `is_active` | bool | - | Filter: `true`, `false` |
-| `start_grade` | float | 0.00 | Grade minimal |
-| `end_grade` | float | 4.00 | Grade maksimal |
-
-**Response (200 OK)**:
-```json
 {
-  "success": true,
-  "message": "student list successfully retreived",
-  "data": [
-    {
-      "id": 1,
-      "nim": "123456789",
-      "name": "John Doe",
-      "grade": 3.50,
-      "is_active": true
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 10,
-    "total": 50,
-    "total_pages": 5
-  }
+  "username": "john_doe",
+  "password": "Password1"
 }
 ```
 
----
+Response berhasil berisi `access_token`, `refresh_token`, `token_type`, dan `expired_in`:
 
-### 3. Ambil Mahasiswa by ID
-
-```http
-GET /students/:id
-```
-
-**Path Parameters**:
-- `id` (int) - Mahasiswa ID
-
-**Response (200 OK)**:
 ```json
 {
   "success": true,
-  "message": "student found",
+  "message": "login berhasil",
   "data": {
-    "id": 1,
-    "nim": "123456789",
-    "name": "John Doe",
-    "grade": 3.50,
-    "is_active": true
+    "access_token": "<jwt>",
+    "refresh_token": "<opaque-token>",
+    "token_type": "Bearer",
+    "expired_in": 900
   }
 }
 ```
 
-**Response (404 Not Found)**:
-```json
+Username atau password yang salah menghasilkan `401`. User yang tidak aktif menghasilkan `403`.
+
+#### Refresh Token
+
+```http
+POST /auth/refresh
+Content-Type: application/json
+
 {
-  "success": false,
-  "message": "student can't be found"
+  "refresh_token": "<refresh-token>"
 }
 ```
 
----
+Endpoint ini mencabut refresh token lama dan mengembalikan pasangan token baru.
 
-### 4. Tambah Mahasiswa Baru
+#### Logout
 
 ```http
-POST /students
+POST /auth/logout
+Content-Type: application/json
+
+{
+  "refresh_token": "<refresh-token>"
+}
+```
+
+Logout tetap mengembalikan status `200`. Jika refresh token dikirim, token tersebut dicabut.
+
+#### Current User
+
+```http
+GET /auth/me
+Authorization: Bearer <access-token>
+```
+
+Mengembalikan data user yang terhubung dengan subject pada access token. Password tidak pernah dikirim karena field tersebut memiliki tag JSON `-`.
+
+### Users
+
+Semua endpoint users memerlukan Bearer access token.
+
+| Method | Endpoint | Keterangan |
+|---|---|---|
+| `GET` | `/users/` | List user dengan pagination, search, filter `is_active`, sort, dan order |
+| `GET` | `/users/:id` | Ambil user berdasarkan ID |
+| `POST` | `/users/` | Buat user baru |
+| `PATCH` | `/users/:id` | Update sebagian data user |
+| `DELETE` | `/users/:id` | Hapus user |
+
+Contoh membuat user:
+
+```http
+POST /users/
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "username": "jane_doe",
+  "email": "jane@example.com",
+  "password": "Password1"
+}
+```
+
+Route `PUT /users/:id` belum didaftarkan pada `route/route.go`, walaupun tipe `ReplaceUserRequest` dan method `Replace` tersedia di service.
+
+### Students
+
+Semua endpoint students memerlukan Bearer access token.
+
+| Method | Endpoint | Keterangan |
+|---|---|---|
+| `GET` | `/students/` | List mahasiswa dengan pagination dan filter |
+| `GET` | `/students/:id` | Ambil mahasiswa berdasarkan ID |
+| `POST` | `/students/` | Tambah mahasiswa |
+| `PUT` | `/students/:id` | Ganti data nama, grade, dan status aktif |
+| `PATCH` | `/students/:id` | Update sebagian data mahasiswa |
+| `DELETE` | `/students/:id` | Hapus mahasiswa |
+
+Contoh membuat mahasiswa:
+
+```http
+POST /students/
+Authorization: Bearer <access-token>
 Content-Type: application/json
 
 {
@@ -338,341 +328,120 @@ Content-Type: application/json
 }
 ```
 
-**Request Body**:
-| Field | Tipe | Validasi |
-|-------|------|----------|
-| `nim` | string | Exactly 9 characters, must be unique |
-| `name` | string | Min 3 characters |
-| `grade` | float | 0.00 - 4.00 |
+Query parameter list yang didukung:
 
-**Response (201 Created)**:
-```json
-{
-  "success": true,
-  "message": "user berhasil dibuat",
-  "data": {
-    "id": 1,
-    "nim": "123456789",
-    "name": "John Doe",
-    "grade": 3.50,
-    "is_active": true
-  }
-}
-```
+| Parameter | Default | Keterangan |
+|---|---|---|
+| `page` | `1` | Nomor halaman |
+| `limit` | `10` | Jumlah data per halaman, maksimum `100` |
+| `search` | kosong | Mencari pada nama atau NIM |
+| `sort` | `id` | `id`, `nim`, `name`, atau `grade` |
+| `order` | `asc` | `asc` atau `desc` |
+| `is_active` | kosong | `true` atau `false` |
+| `grade_start` | `0.00` | Nilai minimum |
+| `grade_end` | `4.00` | Nilai maksimum |
 
-**Headers**:
-```
-Location: /api/v1/students/1
-```
-
-**Response (409 Conflict)** - NIM sudah ada:
-```json
-{
-  "success": false,
-  "message": "nim already used"
-}
-```
-
-**Response (422 Unprocessable Entity)** - Validasi gagal:
-```json
-{
-  "success": true,
-  "message": "validation fail",
-  "errors": {
-    "nim": "NIM harus memiliki panjang 9 karakter",
-    "grade": "Nilai melebihi rentang 0.00 - 4.00"
-  }
-}
-```
-
----
-
-### 5. Update Seluruh Data Mahasiswa (PUT)
+Contoh:
 
 ```http
-PUT /students/:id
-Content-Type: application/json
-
-{
-  "name": "Jane Doe",
-  "grade": 3.75,
-  "is_active": true
-}
+GET /students/?page=1&limit=10&search=john&sort=name&order=asc&is_active=true&grade_start=0&grade_end=4
+Authorization: Bearer <access-token>
 ```
 
-**Request Body** (semua field wajib):
-| Field | Tipe | Validasi |
-|-------|------|----------|
-| `name` | string | Min 3 characters |
-| `grade` | float | 0.00 - 4.00 |
-| `is_active` | bool | - |
+Response list menggunakan `data` array dan `meta`:
 
-**Response (200 OK)**:
 ```json
 {
   "success": true,
-  "message": "student successfully changed entirely",
-  "data": {
-    "id": 1,
-    "nim": "123456789",
-    "name": "Jane Doe",
-    "grade": 3.75,
-    "is_active": true
+  "message": "student list successfully retreived",
+  "data": [],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "total": 0,
+    "total_pages": 0
   }
 }
 ```
 
----
+## Validasi dan Error
 
-### 6. Update Sebagian Data Mahasiswa (PATCH)
+| Status | Kondisi umum |
+|---|---|
+| `200 OK` | Request berhasil |
+| `201 Created` | Resource berhasil dibuat |
+| `204 No Content` | Resource berhasil dihapus |
+| `400 Bad Request` | JSON, ID, atau input request tidak valid |
+| `401 Unauthorized` | Belum login atau token invalid/kedaluwarsa |
+| `403 Forbidden` | Akun tidak aktif |
+| `409 Conflict` | Username atau NIM sudah digunakan |
+| `415 Unsupported Media Type` | Body method tidak memakai `application/json` |
+| `422 Unprocessable Entity` | Validasi field gagal |
+| `429 Too Many Requests` | Login melebihi rate limit |
+| `500 Internal Server Error` | Kegagalan internal atau database |
+| `503 Service Unavailable` | Health check gagal melakukan ping database |
 
-```http
-PATCH /students/:id
-Content-Type: application/json
-
-{
-  "name": "Jane Doe",
-  "grade": 3.75
-}
-```
-
-**Request Body** (hanya field yang ingin diubah):
-```json
-{
-  "name": "Jane Doe",        // optional
-  "grade": 3.75,              // optional
-  "is_active": false          // optional
-}
-```
-
-Minimal satu field harus dikirim.
-
-**Response (200 OK)**:
-```json
-{
-  "success": true,
-  "message": "user berhasil diperbarui sebagian",
-  "data": {
-    "id": 1,
-    "nim": "123456789",
-    "name": "Jane Doe",
-    "grade": 3.75,
-    "is_active": true
-  }
-}
-```
-
----
-
-### 7. Hapus Mahasiswa
-
-```http
-DELETE /students/:id
-```
-
-**Response (204 No Content)** - Sukses:
-```
-(body kosong)
-```
-
-**Response (404 Not Found)** - Mahasiswa tidak ditemukan:
-```json
-{
-  "success": false,
-  "message": "student can't be found"
-}
-```
-
----
-
-## Error Handling
-
-### HTTP Status Codes
-
-| Status | Kondisi |
-|--------|---------|
-| 200 OK | Request berhasil |
-| 201 Created | Resource berhasil dibuat |
-| 204 No Content | Request berhasil, tidak ada response body |
-| 400 Bad Request | Request tidak valid (parameter salah) |
-| 404 Not Found | Resource tidak ditemukan |
-| 409 Conflict | NIM sudah terdaftar (duplicate) |
-| 415 Unsupported Media Type | Content-Type bukan application/json |
-| 422 Unprocessable Entity | Validasi data gagal |
-| 500 Internal Server Error | Error di server |
-| 503 Service Unavailable | Database tidak terhubung |
-
-### Sentinel Errors (dari Repository)
-
-```go
-// app/repository/errors.go
-var (
-    ErrNotFound = errors.New("record not found")
-    ErrDuplicate = errors.New("duplicate value")
-)
-```
-
----
-
-## Penjelasan Desain
-
-### 1. Struktur Proyek
-
-```
-mhs-mgg-tiga/
-├── main.go                          # Entry point dan graceful shutdown
-├── app/
-│   ├── model/
-│   │   └── student.go               # Model dan tipe request/query
-│   ├── repository/
-│   │   └── student_repo.go           # Akses data PostgreSQL
-│   └── service/
-│       ├── service_helper.go         # Pemetaan error service
-│       ├── student_rules.go          # Aturan validasi student
-│       └── student_service.go        # HTTP handler dan business logic
-├── config/
-│   ├── app.go                        # Konfigurasi Fiber dan error handler
-│   ├── env.go                        # Environment configuration
-│   └── logger.go                     # Konfigurasi logger
-├── database/
-│   └── postgres.go                   # PostgreSQL connection pool
-├── helper/
-│   ├── request.go                    # Helper parsing request
-│   └── response.go                   # Format response API
-├── middleware/
-│   └── middleware.go                 # Middleware aplikasi
-├── migrations/
-│   └── 001_create_students.sql     # Database schema
-├── route/
-│   └── route.go                     # Registrasi route API
-├── .env.example                     # Environment template
-├── go.mod                            # Go dependencies
-├── go.sum                            # Dependency checksums
-├── .gitignore                        # File yang diabaikan Git
-└── README.md                         # Dokumentasi ini
-```
-
-### 2. Alur Data
-
-```
-HTTP Request
-    ↓
-Fiber Router
-    ↓
-Handler (validation & business logic)
-    ↓
-Repository (data access)
-    ↓
-PostgreSQL Database
-    ↓
-(response sebaliknya)
-```
-
-### 3. Pemisahan Concerns
-
-- **Handler**: Validasi HTTP, parsing request, error handling
-- **Repository**: Query database, implementasi BusinessLogic
-- **Model**: Struct data, request/response types
-- **Config**: Environment variable management
-- **Database**: Connection pool & utility
-
-### 4. Keamanan
-
-- **Parameterized Queries**: Semua query ke database memakai parameter binding (tidak ada string concatenation)
-- **Unique Constraint**: NIM dijaga dengan UNIQUE index di database
-- **Environment Variables**: Kredensial disimpan di `.env` (tidak di-commit)
-- **Input Validation**: Semua input divalidasi sebelum disimpan
-
-### 5. Performance
-
-- **Connection Pool**: Memakai pgxpool untuk reuse connection
-- **Indexes**: B-tree indexes untuk mempercepat pencarian
-- **Pagination**: Limit hasil query untuk mengurangi memory & network
-- **Prepared Statements**: Query reusable dan teroptimasi
-
----
+Pesan error ditentukan oleh handler service dan dapat berbeda antar endpoint. Error repository `ErrNotFound` dan `ErrDuplicate` diterjemahkan oleh service menjadi response HTTP yang sesuai.
 
 ## Testing
 
-### Test Manual dengan cURL
+Jalankan unit test:
+
+```bash
+go test ./...
+```
+
+Test yang tersedia saat ini mencakup business rules student. Untuk pengujian manual, gunakan urutan berikut:
 
 ```bash
 # Health check
 curl http://localhost:3000/api/v1/health
 
-# Daftar semua mahasiswa
-curl http://localhost:3000/api/v1/students
-
-# Tambah mahasiswa
-curl -X POST http://localhost:3000/api/v1/students \
+# Register
+curl -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"nim":"123456789","name":"John Doe","grade":3.50}'
+  -d '{"username":"john_doe","email":"john@example.com","password":"Password1"}'
 
-# Ambil mahasiswa spesifik
-curl http://localhost:3000/api/v1/students/1
-
-# Update seluruh data (PUT)
-curl -X PUT http://localhost:3000/api/v1/students/1 \
+# Login, lalu simpan access_token dari response
+curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"name":"Jane Doe","grade":3.75,"is_active":true}'
+  -d '{"username":"john_doe","password":"Password1"}'
 
-# Update sebagian (PATCH)
-curl -X PATCH http://localhost:3000/api/v1/students/1 \
-  -H "Content-Type: application/json" \
-  -d '{"grade":3.80}'
-
-# Hapus mahasiswa
-curl -X DELETE http://localhost:3000/api/v1/students/1
+# Akses endpoint protected
+curl http://localhost:3000/api/v1/students/ \
+  -H "Authorization: Bearer <access-token>"
 ```
 
-### Test dengan Postman
+## Struktur Project
 
-1. Import endpoints ke Postman
-2. Set `{{base_url}}` = `http://localhost:3000/api/v1`
-3. Test semua endpoints
-
----
-
-## Troubleshooting
-
-### "database can't be reached"
-
-```bash
-# Cek koneksi PostgreSQL
-psql -U postgres -h localhost -d mhs_mgg_tiga -c "SELECT 1"
-
-# Cek konfigurasi .env
-cat .env
-
-# Pastikan PostgreSQL berjalan
-systemctl status postgresql
+```text
+mhs-mgg-tiga/
+├── main.go
+├── app/
+│   ├── model/          # Model domain dan request/response types
+│   ├── repository/     # Interface dan query PostgreSQL
+│   └── service/        # Handler HTTP dan business rules
+├── config/              # Fiber, environment, dan logger
+├── database/            # Pembuatan connection pool PostgreSQL
+├── helper/              # JWT, password, request, dan response helpers
+├── middleware/          # Auth, CORS, JSON check, rate limiter, logger
+├── migrations/          # SQL schema students, users, dan refresh tokens
+├── route/               # Registrasi endpoint dan dependency wiring
+├── AI-USAGE.md          # Catatan penggunaan AI pada pengembangan
+├── go.mod
+└── README.md
 ```
 
-### "NIM telah terdaftar"
+### Alur Request
 
-```bash
-# Cek data existing
-psql -U postgres -d mhs_mgg_tiga -c "SELECT nim FROM students"
+```text
+HTTP request
+  -> Fiber middleware
+  -> route dan authentication middleware
+  -> service handler
+  -> repository
+  -> PostgreSQL
+  -> WebResponse
 ```
 
-### "berkas .env tidak ditemukan"
-
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit dengan credential database
-nano .env
-```
-
----
-
-## Lisensi
-
-Universitas Airlangga - Backend Assignment
-
----
-
-## Kontak
-
-Untuk pertanyaan atau issues: hubungi instructor
+Repository menggunakan query parameterized. Password disimpan menggunakan bcrypt, access token menggunakan JWT, dan refresh token disimpan sebagai hash.
