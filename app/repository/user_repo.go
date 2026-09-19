@@ -118,7 +118,7 @@ func (r *UserPGRepository) Create(ctx context.Context, u model.User) (model.User
 }
 
 func (r *UserPGRepository) Update(ctx context.Context, u model.User) (model.User, error) {
-	if err := r.pool.QueryRow(ctx, "UPDATE users SET username = $1, email = $2, is_active = $3 WHERE id = $4 RETURNING id, username, email, is_active, created_at").Scan(&u.ID, &u.Username, &u.Email, &u.IsActive, &u.CreatedAt); err != nil {
+	if err := r.pool.QueryRow(ctx, "UPDATE users SET username = $1, email = $2, is_active = $3 WHERE id = $4 RETURNING id, username, email, is_active, created_at", u.Username, u.Email, u.IsActive, u.ID).Scan(&u.ID, &u.Username, &u.Email, &u.IsActive, &u.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.User{}, ErrNotFound
 		}

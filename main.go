@@ -55,7 +55,7 @@ func main() {
 		logger.Error("gagal memuat role permission", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	
+
 	permissionSet := helper.NewPermissionSet(rawRolePerm)
 	logger.Info("berhasil memuat role permission", slog.Any("roles", permissionSet.KnownRoles()))
 
@@ -80,6 +80,7 @@ func main() {
 		UserHandler:    userService,
 		AuthHandler:    authService,
 		StudentHandler: studentService,
+		Permission:     permissionSet,
 	}
 
 	// APP

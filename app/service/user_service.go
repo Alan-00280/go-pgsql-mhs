@@ -86,8 +86,35 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 	return helper.Created(c, "user successfully created!", new, "/api/v1/users/"+strconv.Itoa(new.ID))
 }
 
-func (h *UserHandler) Replace() error {
-	return nil
+func (h *UserHandler) Replace(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+	}
+
+	var req model.ReplaceUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		helper.Fail(c, fiber.StatusInternalServerError, "JSON invalid")
+	}
+
+	user, err := h.repo.FindByID(ctx, id)
+	if err != nil {
+		return helper.Fail(c, fiber.StatusNotFound, "user tidak ditemukan")
+	}
+
+	if errs := ValidateReplaceUser(req); len(errs) > 0 {
+		return helper.FailValidation(c, errs)
+	}
+
+	updated, err := h.repo.Update(ctx, user)
+	if err != nil {
+		return helper.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui data pengguna sepenuhnya")
+	}
+
+	return helper.Ok(c, "berhasil memperbarui data pengguna secara penuh", updated)
 }
 
 func (h *UserHandler) Patch(c *fiber.Ctx) error {
@@ -101,7 +128,7 @@ func (h *UserHandler) Patch(c *fiber.Ctx) error {
 
 	var req model.PatchUserRequest
 	if err := c.BodyParser(&req); err != nil {
-		helper.Fail(c, fiber.StatusInternalServerError, "JSON invalid")
+		helper.Fail(c, fiber.StatusBadRequest, "JSON invalid")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)
