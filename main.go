@@ -48,6 +48,17 @@ func main() {
 		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
 	)
 
+	// Load Role Permissions
+	roleRepo := repository.NewRoleRepository(pool)
+	rawRolePerm, err := roleRepo.LoadPermissions(context.Background())
+	if err != nil {
+		logger.Error("gagal memuat role permission", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	
+	permissionSet := helper.NewPermissionSet(rawRolePerm)
+	logger.Info("berhasil memuat role permission", slog.Any("roles", permissionSet.KnownRoles()))
+
 	// Repo -> Services
 	userRepo := repository.NewUserRepository(pool)
 	userService := service.NewUserHandler(userRepo)
