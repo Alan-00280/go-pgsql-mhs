@@ -186,6 +186,15 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusBadRequest, "can't delete user: ID Invalid")
 	}
 
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	if current.UserID == id {
+		return helper.Fail(c, fiber.StatusForbidden, "tidak memiliki hak untuk menghapus user milik diri sendiri")
+	}
+
 	if err := h.repo.Delete(ctx, id); err != nil {
 		return translateErr(c, err, "can't delete user")
 	}
