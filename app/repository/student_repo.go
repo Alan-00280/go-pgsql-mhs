@@ -152,10 +152,10 @@ func (r *StudentPGRepository) Create(
 	ctx context.Context, s model.Student,
 ) (model.Student, error) {
 	if err := r.pool.QueryRow(ctx,
-		`INSERT INTO students (nim, name, grade, is_active)
-         VALUES ($1, $2, $3, $4)
+		`INSERT INTO students (nim, name, grade, is_active, owner_id)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, created_at`,
-		s.NIM, s.Name, s.Grade, s.IsActive,
+		s.NIM, s.Name, s.Grade, s.IsActive, s.OwnerID,
 	).Scan(&s.ID, &s.CreatedAt); err != nil {
 		if isUniqueViolation(err) {
 			return model.Student{}, ErrDuplicate

@@ -78,6 +78,11 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 
 	req.Name = strings.TrimSpace(req.Name)
 
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
 	// VALIDATION
 	if errs := ValidateCreateStudent(req); len(errs) > 0 {
 		return helper.FailValidation(c, errs)
@@ -91,6 +96,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 		Name:     req.Name,
 		Grade:    req.Grade,
 		IsActive: true,
+		OwnerID:  current.UserID,
 	})
 	if err != nil {
 		return translateErr(c, err, "can't store student")
