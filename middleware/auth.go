@@ -11,7 +11,7 @@ import (
 )
 
 // func RequireAuth(*helper.JWTManager) fiber.handler
-// memeriksa ada token atau enggak. Ada --> data user disimpan di Locals
+// memeriksa ada access token atau enggak. Ada --> data user disimpan di Locals
 func RequireAuth(jwt *helper.JWTManager) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		token, err := bearerToken(c)

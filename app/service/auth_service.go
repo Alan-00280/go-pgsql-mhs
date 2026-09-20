@@ -30,6 +30,7 @@ type AuthHandler struct {
 	tokens     repository.TokenRepository
 	jwt        *helper.JWTManager
 	refreshTTL time.Duration
+	perms      *helper.PermissionSet
 }
 
 // buat function yang mengembalikan struct *AuthService dengan parameter sama dengan atribut2 nya
@@ -38,12 +39,14 @@ func NewAuthHandler(
 	tokens repository.TokenRepository,
 	jwt *helper.JWTManager,
 	refreshTTL time.Duration,
+	perms *helper.PermissionSet,
 ) *AuthHandler {
 	return &AuthHandler{
 		users:      users,
 		tokens:     tokens,
 		jwt:        jwt,
 		refreshTTL: refreshTTL,
+		perms:      perms,
 	}
 }
 
@@ -52,8 +55,9 @@ func NewAuthHandler(
 
 // --- METHODS ---
 // func (s *AuthService) Register() error :
-//  POST /auth/register
-//	ambil ctx, check body JSON pakai c.BodyParser, trimspace username email, check validasi, hash password, panggil s.users.Create(), kembalikan helper.Created
+//
+//	 POST /auth/register
+//		ambil ctx, check body JSON pakai c.BodyParser, trimspace username email, check validasi, hash password, panggil s.users.Create(), kembalikan helper.Created
 func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -94,8 +98,9 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Login() error :
-//  POST /auth/loign
-//	ambil ctx, cek body JSON, validasi, panggil s.users.FindByUsername(), helper.VerifyPassword, check is active, buat token pair, kembalikan helper.Success bersama token pair
+//
+//	 POST /auth/loign
+//		ambil ctx, cek body JSON, validasi, panggil s.users.FindByUsername(), helper.VerifyPassword, check is active, buat token pair, kembalikan helper.Success bersama token pair
 func (s *AuthHandler) Login(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -133,8 +138,9 @@ func (s *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Refresh() error :
-//  POST /auth/refresh
-//	ambil ctx, cek body JSON, cek string token, panggil findActive() pakai token, ambil user, Revoke(), issueTokenPair(), return helper.Success
+//
+//	 POST /auth/refresh
+//		ambil ctx, cek body JSON, cek string token, panggil findActive() pakai token, ambil user, Revoke(), issueTokenPair(), return helper.Success
 func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -172,8 +178,9 @@ func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService) Logout() error :
-//  POST /auth/logout
-//	ambil ctx, cek body JSON, cek refreshToken, Revoke Token, return helper.Success
+//
+//	 POST /auth/logout
+//		ambil ctx, cek body JSON, cek refreshToken, Revoke Token, return helper.Success
 func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -191,8 +198,9 @@ func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 }
 
 // func (s *AuthService)  Me() error :
-//  GET /auth/me
-//	ambil ctx, ambil current user pakai helper function, return helper.success dengan user
+//
+//	 GET /auth/me
+//		ambil ctx, ambil current user pakai helper function, return helper.success dengan user
 func (s *AuthHandler) Me(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -207,7 +215,10 @@ func (s *AuthHandler) Me(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusUnauthorized, "user tidak ditemukan")
 	}
 
-	return helper.Ok(c, "user berhasil ditemukan", user)
+	return helper.Ok(c, "user berhasil ditemukan", fiber.Map{
+		"user":        user,
+		"permissions": s.perms.PermissionsOf(user.Role),
+	})
 }
 
 // func (s *AuthService) issueTokenPair(*fiber.Ctx, model.User) (model.TokenPair, error) :
