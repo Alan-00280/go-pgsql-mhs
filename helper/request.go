@@ -58,23 +58,38 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 		}
 	}
 
-	gradeFilter := model.StudentFilter{
+	studentFilter := model.StudentFilter{
 		StartGrade: 0.00,
 		EndGrade:   model.MAX_GRADE,
+		OwnerID:    nil,
 	}
 
 	if gd_st := c.Query("grade_start"); gd_st != "" {
 		if v, err := strconv.ParseFloat(gd_st, 64); err == nil {
-			gradeFilter.StartGrade = v
+			studentFilter.StartGrade = v
 		}
 	}
 	if gd_end := c.Query("grade_end"); gd_end != "" {
 		if v, err := strconv.ParseFloat(gd_end, 64); err == nil {
-			gradeFilter.EndGrade = v
+			studentFilter.EndGrade = v
+		}
+	}
+	if owner_id := c.Query("owner_id"); owner_id != "" {
+		if v, err := strconv.Atoi(owner_id); err == nil {
+			studentFilter.OwnerID = &v
 		}
 	}
 
-	q.StudentFilter = &gradeFilter
+	q.StudentFilter = &studentFilter
+
+	userFilter := model.UserFilter{
+		Role: "",
+	}
+	if roleFilter := c.Query("role"); strings.TrimSpace(roleFilter) != "" {
+		userFilter.Role = strings.TrimSpace(roleFilter)
+	}
+
+	q.UserFilter = &userFilter
 
 	return q
 }

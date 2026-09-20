@@ -192,3 +192,35 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error {
 
 	return helper.NoContent(c)
 }
+
+func (h *UserHandler) AssignRole(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.Fail(c, fiber.StatusBadRequest, "can't delete user: ID Invalid")
+	}
+
+	var userAssignRole model.AssignRoleRequest
+	if err := c.BodyParser(&userAssignRole); err != nil {
+		helper.Fail(c, fiber.StatusBadRequest, "JSON invalid")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	errs := ValidateAssignRole(current, id, userAssignRole, h.perms)
+	if len(errs) > 0 {
+		return helper.FailValidation(c, errs)
+	}
+
+	result, err := h.repo.UpdateRole(ctx, id, userAssignRole.Role)
+	if err != nil {
+		return helper.Fail(c, fiber.StatusInternalServerError, "tidak dapat memberikan role ke user")
+	}
+
+	return helper.Ok(c, "berhasil mengubah role", result)
+}

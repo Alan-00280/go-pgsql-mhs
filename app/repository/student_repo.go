@@ -49,7 +49,6 @@ func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
 	return &StudentPGRepository{pool: pool}
 }
 
-// NEW filter owner_id
 // Args builder (WHERE ...)
 func buildFilterStudent(q model.ListQuery) (string, []any) {
 	where := " WHERE 1=1"

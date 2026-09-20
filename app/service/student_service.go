@@ -59,7 +59,7 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 		return translateErr(c, err, "can't get student data")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:read:any") {
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:read:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses student ini")
 	}
 
@@ -125,7 +125,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") {
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengganti data student ini")
 	}
 
@@ -174,7 +174,7 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") {
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data student ini")
 	}
 

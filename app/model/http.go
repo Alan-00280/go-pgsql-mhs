@@ -24,4 +24,5 @@ type ListQuery struct {
 	Order    string
 	IsActive *bool
 	*StudentFilter
+	*UserFilter
 }

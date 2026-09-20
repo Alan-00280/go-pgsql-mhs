@@ -17,6 +17,7 @@ type UserRepository interface {
 	Create(ctx context.Context, u model.User) (model.User, error)
 	Update(ctx context.Context, u model.User) (model.User, error)
 	Delete(ctx context.Context, id int) error
+	UpdateRole(ctx context.Context, id int, role string) (model.User, error)
 }
 
 var sortColumnUser = map[string]string{
@@ -26,6 +27,7 @@ var sortColumnUser = map[string]string{
 	"created_at": "created_at",
 }
 
+// NEW filter role
 func buildFilterUser(q model.ListQuery) (string, []any) {
 	where := " WHERE 1=1"
 	args := []any{}
@@ -39,6 +41,13 @@ func buildFilterUser(q model.ListQuery) (string, []any) {
 	if q.IsActive != nil {
 		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
 		args = append(args, *q.IsActive)
+	}
+
+	if q.UserFilter != nil {
+		if q.UserFilter.Role != "" {
+			where += fmt.Sprintf(" AND role = $%d", len(args)+1)
+			args = append(args, q.UserFilter.Role)
+		}
 	}
 
 	return where, args
@@ -158,6 +167,22 @@ func (r *UserPGRepository) FindByUsername(
 			return model.User{}, ErrNotFound
 		}
 		return model.User{}, fmt.Errorf("mengambil user: %w", err)
+	}
+
+	return u, nil
+}
+
+func (r *UserPGRepository) UpdateRole(
+	ctx context.Context, id int, role string,
+) (model.User, error) {
+	var u model.User
+
+	if err := r.pool.QueryRow(ctx, `UPDATE users SET role = $1 WHERE id = $2 RETURNING id, username, email, role, is_active, created_at `, role, id).Scan(&u.ID, &u.Username, &u.Email, &u.Role, &u.IsActive, &u.CreatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return model.User{}, ErrNotFound
+		}
+
+		return model.User{}, fmt.Errorf("[ERROR] can't update role user: %w", err)
 	}
 
 	return u, nil

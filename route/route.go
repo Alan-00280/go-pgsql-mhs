@@ -40,7 +40,7 @@ func Register(app *fiber.App, deps Dependencies) {
 	user.Get("/", middleware.RequirePermission(permissions, "user:list"), deps.UserHandler.ListAll)
 	user.Post("/", middleware.RequirePermission(permissions, "user:update:any"), deps.UserHandler.Create)
 	user.Delete("/:id", middleware.RequirePermission(permissions, "user:delete"), deps.UserHandler.Delete)
-	// TODO : Need New Route for Assigning new Role
+	user.Patch("/:id/role", middleware.RequirePermission(permissions, "role:assign"), deps.UserHandler.AssignRole)
 
 	user.Put("/:id", deps.UserHandler.Replace)
 	user.Get("/:id", deps.UserHandler.Get)

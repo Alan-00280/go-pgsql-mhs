@@ -37,3 +37,7 @@ type PatchUserRequest struct {
 type AssignRoleRequest struct {
 	Role string `json:"role"`
 }
+
+type UserFilter struct {
+	Role string
+}
