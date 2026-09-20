@@ -11,11 +11,12 @@ import (
 )
 
 type StudentHandler struct {
-	repo repository.StudentRepository
+	repo  repository.StudentRepository
+	perms *helper.PermissionSet
 }
 
-func NewStudentHandler(repo repository.StudentRepository) *StudentHandler {
-	return &StudentHandler{repo: repo}
+func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet) *StudentHandler {
+	return &StudentHandler{repo: repo, perms: perms}
 }
 
 // GET - Get All Students
@@ -48,12 +49,21 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
 	}
 
-	user, err := h.repo.FindById(ctx, id)
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
 		return translateErr(c, err, "can't get student data")
 	}
 
-	return helper.Ok(c, "student found", user)
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:read:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses student ini")
+	}
+
+	return helper.Ok(c, "student found", student)
 }
 
 // POST - Create a Student
@@ -105,6 +115,20 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusBadRequest, "JSON Body invalid")
 	}
 
+	student, err := h.repo.FindById(ctx, id)
+	if err != nil {
+		return translateErr(c, err, "can't get student data")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
+	}
+
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengganti data student ini")
+	}
+
 	// VALIDATE
 	if errs := ValidateReplaceStudent(req); len(errs) > 0 {
 		return helper.FailValidation(c, errs)
@@ -142,7 +166,16 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 
 	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "gagal mengambil data user")
+		return translateErr(c, err, "gagal mengambil data student")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
+	}
+
+	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data student ini")
 	}
 
 	newStudent, errs := ValidatePatchStudent(student, req)

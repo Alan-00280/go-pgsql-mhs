@@ -61,7 +61,7 @@ func main() {
 
 	// Repo -> Services
 	userRepo := repository.NewUserRepository(pool)
-	userService := service.NewUserHandler(userRepo)
+	userService := service.NewUserHandler(userRepo, permissionSet)
 
 	authRepo := repository.NewAuthRepo(pool)
 	authService := service.NewAuthHandler(
@@ -72,7 +72,7 @@ func main() {
 	)
 
 	studentRepo := repository.NewStudentRepository(pool)
-	studentService := service.NewStudentHandler(studentRepo)
+	studentService := service.NewStudentHandler(studentRepo, permissionSet)
 
 	deps := route.Dependencies{
 		Pool:           pool,

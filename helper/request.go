@@ -58,7 +58,7 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 		}
 	}
 
-	gradeFilter := model.GradeFilter{
+	gradeFilter := model.StudentFilter{
 		StartGrade: 0.00,
 		EndGrade:   model.MAX_GRADE,
 	}
@@ -74,7 +74,7 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 		}
 	}
 
-	q.GradeFilter = &gradeFilter
+	q.StudentFilter = &gradeFilter
 
 	return q
 }

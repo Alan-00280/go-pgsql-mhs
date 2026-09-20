@@ -11,11 +11,12 @@ import (
 )
 
 type UserHandler struct {
-	repo repository.UserRepository
+	repo  repository.UserRepository
+	perms *helper.PermissionSet
 }
 
-func NewUserHandler(repo repository.UserRepository) *UserHandler {
-	return &UserHandler{repo: repo}
+func NewUserHandler(repo repository.UserRepository, perms *helper.PermissionSet) *UserHandler {
+	return &UserHandler{repo: repo, perms: perms}
 }
 
 func (h *UserHandler) ListAll(c *fiber.Ctx) error {
@@ -44,6 +45,15 @@ func (h *UserHandler) Get(c *fiber.Ctx) error {
 	id, valid := helper.ParamID(c)
 	if !valid {
 		helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	if !CanAccessUser(current, id, h.perms, "user:read:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses pengguna ini")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)
@@ -100,6 +110,15 @@ func (h *UserHandler) Replace(c *fiber.Ctx) error {
 		helper.Fail(c, fiber.StatusInternalServerError, "JSON invalid")
 	}
 
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk menggantikan data pengguna ini")
+	}
+
 	user, err := h.repo.FindByID(ctx, id)
 	if err != nil {
 		return helper.Fail(c, fiber.StatusNotFound, "user tidak ditemukan")
@@ -129,6 +148,15 @@ func (h *UserHandler) Patch(c *fiber.Ctx) error {
 	var req model.PatchUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		helper.Fail(c, fiber.StatusBadRequest, "JSON invalid")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+	}
+
+	if !CanAccessUser(current, id, h.perms, "user:update:any") {
+		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data pengguna ini")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)

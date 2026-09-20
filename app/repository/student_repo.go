@@ -49,6 +49,7 @@ func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
 	return &StudentPGRepository{pool: pool}
 }
 
+// NEW filter owner_id
 // Args builder (WHERE ...)
 func buildFilterStudent(q model.ListQuery) (string, []any) {
 	where := " WHERE 1=1"
@@ -65,15 +66,20 @@ func buildFilterStudent(q model.ListQuery) (string, []any) {
 		args = append(args, *q.IsActive)
 	}
 
-	if q.GradeFilter != nil {
-		if q.GradeFilter.StartGrade >= 0.00 {
+	if q.StudentFilter != nil {
+		if q.StudentFilter.StartGrade >= 0.00 {
 			where += fmt.Sprintf(" AND grade >= $%d", len(args)+1)
-			args = append(args, q.GradeFilter.StartGrade)
+			args = append(args, q.StudentFilter.StartGrade)
 		}
 
-		if q.GradeFilter.EndGrade <= 4.00 {
+		if q.StudentFilter.EndGrade <= 4.00 {
 			where += fmt.Sprintf(" AND grade <= $%d", len(args)+1)
-			args = append(args, q.GradeFilter.EndGrade)
+			args = append(args, q.StudentFilter.EndGrade)
+		}
+
+		if q.StudentFilter.OwnerID != nil && *q.StudentFilter.OwnerID > 0 {
+			where += fmt.Sprintf(" AND owner_id = $%d", len(args)+1)
+			args = append(args, q.StudentFilter.OwnerID)
 		}
 	}
 
@@ -96,7 +102,7 @@ func (r *StudentPGRepository) FindAll(
 	}
 
 	sqlText := fmt.Sprintf(
-		`SELECT id, nim, name, grade, is_active, created_at 
+		`SELECT id, nim, name, grade, is_active, created_at, owner_id 
 		FROM students %s
 		ORDER BY %s %s 
 		LIMIT $%d OFFSET $%d`,
@@ -113,7 +119,7 @@ func (r *StudentPGRepository) FindAll(
 	result := []model.Student{}
 	for rows.Next() {
 		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 			return nil, 0, fmt.Errorf("[ERROR] scan student query: %w", err)
 		}
 		result = append(result, s)
@@ -132,8 +138,8 @@ func (r *StudentPGRepository) FindById(
 	var s model.Student
 
 	if err := r.pool.QueryRow(ctx,
-		"SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1", id,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		"SELECT id, nim, name, grade, is_active, created_at, owner_id FROM students WHERE id = $1", id,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
@@ -168,9 +174,9 @@ func (r *StudentPGRepository) Update(
 	if err := r.pool.QueryRow(ctx,
 		`UPDATE students SET nim = $1, name = $2, grade = $3, is_active = $4
          WHERE id = $5
-         RETURNING id, nim, name, grade, is_active, created_at`,
+         RETURNING id, nim, name, grade, is_active, created_at, owner_id`,
 		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
