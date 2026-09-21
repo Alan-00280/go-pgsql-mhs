@@ -9,28 +9,39 @@ import (
 
 func TestCanAccessStudent(t *testing.T) {
 	perms := helper.NewPermissionSet(map[string][]string{
-		"staff": {"student:read:any", "student:update:any"},
+		"staff": {"student:read:any", "student:list"},
 		"admin": {"student:delete"},
 	})
 
 	t.Run("owner can access own student data", func(t *testing.T) {
 		current := model.AuthUser{UserID: 7, Role: "staff"}
-		if !CanAccessStudent(current, 7, perms, "student:read:any") {
+		student := model.Student{ID: 10, OwnerID: 7}
+		if !CanAccessStudent(current, student.OwnerID, student.ID, perms, "student:update:any") {
 			t.Fatal("owner should be allowed to access their own student data")
 		}
 	})
 
 	t.Run("role with required permission can access", func(t *testing.T) {
 		current := model.AuthUser{UserID: 11, Role: "staff"}
-		if !CanAccessStudent(current, 9, perms, "student:update:any") {
+		student := model.Student{ID: 10, OwnerID: 11}
+		if !CanAccessStudent(current, student.OwnerID, student.ID, perms, "student:update:any") {
 			t.Fatal("user with required permission should be allowed")
 		}
 	})
 
 	t.Run("user without permission is denied", func(t *testing.T) {
 		current := model.AuthUser{UserID: 11, Role: "staff"}
-		if CanAccessStudent(current, 9, perms, "student:view-all") {
+		student := model.Student{ID: 10, OwnerID: 11}
+		if !CanAccessStudent(current, student.OwnerID, student.ID, perms, "student:update:any") {
 			t.Fatal("user without matching permission should be denied")
+		}
+	})
+
+	t.Run("user with different ownership", func(t *testing.T) {
+		current := model.AuthUser{UserID: 11, Role: "staff"}
+		student := model.Student{ID: 10, OwnerID: 10}
+		if CanAccessStudent(current, student.OwnerID, student.ID, perms, "student:update:any") {
+			t.Fatal("user should can't access differents ownership")
 		}
 	})
 }

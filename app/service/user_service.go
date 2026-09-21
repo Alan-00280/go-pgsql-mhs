@@ -27,7 +27,7 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 
 	users, total, err := h.repo.FindAll(ctx, q)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "tidak dapat mendapatkan seluruh user")
+		return helper.Fail(c, fiber.StatusInternalServerError, "tidak dapat mendapatkan seluruh user: "+err.Error())
 	}
 
 	return helper.OkList(c, "berhasil mendapatkan semua user", users, &model.Meta{
@@ -88,6 +88,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 		Username: req.Username,
 		Email:    req.Email,
 		Password: hashedPassword,
+		Role:     "user",
 	})
 	if err != nil {
 		return translateErr(c, err, "can't create user")

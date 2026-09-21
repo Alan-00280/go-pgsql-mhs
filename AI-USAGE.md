@@ -1,5 +1,56 @@
 # AI Usage Log
 
+## Session 7 - README & RBAC Documentation Synchronization (2026-09-20)
+
+### Objective
+Menyelaraskan dokumentasi README dengan rute yang benar-benar aktif di `route/route.go` serta menambahkan matriks permission RBAC berdasarkan migration dan logika otorisasi.
+
+### Activities Completed
+
+- Membaca `route/route.go` untuk memastikan endpoint yang dijelaskan di README sesuai dengan route yang benar-benar terdaftar.
+- Membaca migration `004_rbac.sql` dan `005_student_rbac.sql` untuk memastikan daftar permission role yang tercatat di dokumentasi sesuai dengan data yang benar di database.
+- Menambahkan section baru `RBAC Permission Matrix` ke `README.md` mencakup role `admin`, `staff`, dan `user`, serta permission yang relevan untuk `/users` dan `/students`.
+- Menjelaskan aturan akses owner-based pada `CanAccessUser()` dan `CanAccessStudent()` agar dokumentasi menggambarkan arah logika bisnis yang sebenarnya.
+- Menyusun catatan ini untuk menjaga jejak aktivitas yang sudah dilakukan.
+
+### Validation
+
+- Pemeriksaan manual terhadap `route/route.go`, `004_rbac.sql`, `005_student_rbac.sql`, dan `README.md` menunjukkan konsistensi antara dokumentasi dan implementasi.
+- Tidak ada perubahan kode program yang memerlukan build baru; fokus pada dokumentasi dan sinkronisasi informasi.
+
+### Notes
+
+- README sekarang mencerminkan bahwa permission untuk `users` dan `students` bersifat role-based, sementara akses data diri sendiri tetap diizinkan secara otomatis oleh service-level authz check.
+- Dokumentasi ini membantu pengembangan di masa depan agar tidak salah mengasumsikan endpoint tanpa permission atau role yang tidak ada.
+
+## Session 6 - Authorization Rules Test Coverage (2026-09-20)
+
+### Objective
+Membuat unit test untuk menguji fungsi otorisasi pada `app/service/student_authz_rules.go` dan `app/service/user_authz_rules.go`.
+
+### Activities Completed
+
+- Membaca fungsi `CanAccessStudent` dan `CanAccessUser` serta `ValidateAssignRole` untuk memastikan logika akses sesuai dengan kebutuhan bisnis.
+- Membuat file baru `app/service/authz_rules_test.go` yang menguji:
+  - owner dapat mengakses data miliknya sendiri
+  - user dengan permission yang tepat dapat mengakses data orang lain
+  - user tanpa permission ditolak
+  - role valid dapat dipasang
+  - role kosong atau tidak dikenal ditolak
+  - user tidak dapat mengubah role dirinya sendiri
+- Menjalankan test yang relevan dengan command `go test ./app/service -run 'TestCanAccess(Student|User)|TestValidateAssignRole'`.
+- Menemukan bahwa suite test yang lebih luas di `./app/service` masih gagal karena file `files/common_password.txt` tidak ditemukan pada environment saat ini, namun test otorisasi yang baru dibuat berhasil.
+
+### Validation
+
+- Command: `cd 'd:\programs\unair\backend_lanjut\mhs-mgg-tiga'; go test ./app/service -run 'TestCanAccess(Student|User)|TestValidateAssignRole'`
+- Hasil: `ok      github.com/Alan-00280/go-pgsql-mhs.git/app/service      0.749s`
+
+### Notes
+
+- Fokus utama aktivitas ini adalah pengujian perilaku nyata dari fungsi otorisasi, bukan asumsi atau mock.
+- Tujuan akhir adalah memastikan aturan akses user/student konsisten dengan kebutuhan RBAC yang ada di project.
+
 ## Session 5 - Debugging Login Token Pair (2026-09-15)
 
 ### Objective

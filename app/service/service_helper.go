@@ -11,9 +11,9 @@ import (
 func translateErr(c *fiber.Ctx, err error, generalMessage string) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return helper.Fail(c, fiber.StatusNotFound, "student can't be found")
+		return helper.Fail(c, fiber.StatusNotFound, "data can't be found")
 	case errors.Is(err, repository.ErrDuplicate):
-		return helper.Fail(c, fiber.StatusConflict, "nim already used")
+		return helper.Fail(c, fiber.StatusConflict, "data already used")
 	default:
 		return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
 	}

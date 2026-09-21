@@ -59,7 +59,7 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 		return translateErr(c, err, "can't get student data")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:read:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:read:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses student ini")
 	}
 
@@ -102,7 +102,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 		return translateErr(c, err, "can't store student")
 	}
 
-	return helper.Created(c, "user berhasil dibuat", baru,
+	return helper.Created(c, "student berhasil dibuat", baru,
 		"/api/v1/students/"+strconv.Itoa(baru.ID))
 }
 
@@ -131,7 +131,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengganti data student ini")
 	}
 
@@ -142,7 +142,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 
 	// UPDATE
 	hasil, err := h.repo.Update(ctx, model.Student{
-		ID: id, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
+		ID: id, NIM: student.NIM, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
 	})
 	if err != nil {
 		return translateErr(c, err, "can't update student")
@@ -180,7 +180,7 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
 	}
 
-	if !CanAccessStudent(current, student.OwnerID, h.perms, "student:update:any") && !CanAccessStudent(current, student.ID, h.perms, "student:read:any") {
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
 		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data student ini")
 	}
 
@@ -191,10 +191,10 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 
 	result, err := h.repo.Update(ctx, newStudent)
 	if err != nil {
-		return translateErr(c, err, "gagal memperbarui user")
+		return translateErr(c, err, "student")
 	}
 
-	return helper.Ok(c, "user berhasil diperbarui sebagian", result)
+	return helper.Ok(c, "student berhasil diperbarui sebagian", result)
 }
 
 // DELETE - Drop a Student

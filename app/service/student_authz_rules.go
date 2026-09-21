@@ -8,10 +8,15 @@ import (
 func CanAccessStudent(
 	current model.AuthUser,
 	ownerID int,
+	studentID int,
 	perms *helper.PermissionSet,
 	anyPermission string,
 ) bool {
 	if current.UserID == ownerID {
+		return true
+	}
+
+	if current.UserID == studentID && current.Role == "student" {
 		return true
 	}
 

@@ -70,12 +70,12 @@ func (r *UserPGRepository) FindAll(ctx context.Context, q model.ListQuery) ([]mo
 	}
 
 	direction := "ASC"
-	if q.Order != "desc" {
+	if q.Order != "asc" {
 		direction = "DESC"
 	}
 
 	sqlText := fmt.Sprintf(
-		`SELECT id, username, email, role, is_active, created_at FROM users %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, where, sortColumnUser[q.Order], direction, len(args)+1, len(args)+2,
+		`SELECT id, username, email, role, is_active, created_at FROM users %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, where, sortColumnUser[q.Sort], direction, len(args)+1, len(args)+2,
 	)
 	args = append(args, q.Limit, q.Offset())
 
