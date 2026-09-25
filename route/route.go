@@ -63,7 +63,7 @@ func healthCheck(pool *pgxpool.Pool) fiber.Handler {
 
 		if err := pool.Ping(ctx); err != nil {
 			// ERR 503 - Service Unavailable
-			return helper.Fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
+			return helper.ServiceUnavailable("database can't be reached")
 		}
 
 		return helper.Ok(c, "server and database is OK!", nil)

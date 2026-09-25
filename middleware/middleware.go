@@ -29,7 +29,7 @@ func RequestLogger(logger *slog.Logger) fiber.Handler {
 				status = fiber.StatusInternalServerError
 			}
 		}
-		
+
 		attr := []any{
 			slog.String("request_id", requestID),
 			slog.String("method", c.Method()),
@@ -70,7 +70,7 @@ func RequireJSON(c *fiber.Ctx) error {
 	if bodiedMethod[c.Method()] {
 		ct := c.Get("Content-Type")
 		if !strings.HasPrefix(ct, fiber.MIMEApplicationJSON) {
-			return helper.Fail(c, fiber.StatusUnsupportedMediaType, "Content-Type harus application/json")
+			return helper.UnsuportedMediaType("Content-Type harus application/json")
 		}
 	}
 	return c.Next()

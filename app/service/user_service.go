@@ -27,7 +27,7 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 
 	users, total, err := h.repo.FindAll(ctx, q)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "tidak dapat mendapatkan seluruh user: "+err.Error())
+		return helper.Internal(err)
 	}
 
 	return helper.OkList(c, "berhasil mendapatkan semua user", users, &model.Meta{
@@ -44,21 +44,21 @@ func (h *UserHandler) Get(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+		return helper.BadRequest("id invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if !CanAccessUser(current, id, h.perms, "user:read:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses pengguna ini")
+		return helper.Forbidden("anda tidak memiliki hak untuk mengakses pengguna ini")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "gagal memperoleh user")
+		return translateErr(err, "user")
 	}
 
 	return helper.Ok(c, "berhasil mendapatkan user", user)
@@ -70,18 +70,18 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 
 	var req model.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "json is not valid")
+		return helper.BadRequest("json is not valid")
 	}
 
 	req.Username = strings.TrimSpace(req.Username)
 
 	if errs := ValidateCreateUser(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	hashedPassword, err := helper.HashPassword(req.Password)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't create user")
+		return helper.Internal(err)
 	}
 
 	new, err := h.repo.Create(ctx, model.User{
@@ -91,7 +91,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 		Role:     "user",
 	})
 	if err != nil {
-		return translateErr(c, err, "can't create user")
+		return translateErr(err, "user")
 	}
 
 	return helper.Created(c, "user successfully created!", new, "/api/v1/users/"+strconv.Itoa(new.ID))
@@ -103,35 +103,35 @@ func (h *UserHandler) Replace(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+		return helper.BadRequest("id invalid")
 	}
 
 	var req model.ReplaceUserRequest
 	if err := c.BodyParser(&req); err != nil {
-		helper.Fail(c, fiber.StatusInternalServerError, "JSON invalid")
+		return helper.BadRequest("JSON invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if !CanAccessUser(current, id, h.perms, "user:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk menggantikan data pengguna ini")
+		return helper.Forbidden("anda tidak dapat hak untuk menggantikan data pengguna ini")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusNotFound, "user tidak ditemukan")
+		return helper.NotFound("user tidak ditemukan")
 	}
 
 	if errs := ValidateReplaceUser(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	updated, err := h.repo.Update(ctx, user)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "gagal memperbarui data pengguna sepenuhnya")
+		return helper.Internal(err)
 	}
 
 	return helper.Ok(c, "berhasil memperbarui data pengguna secara penuh", updated)
@@ -143,36 +143,36 @@ func (h *UserHandler) Patch(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+		return helper.BadRequest("id invalid")
 	}
 
 	var req model.PatchUserRequest
 	if err := c.BodyParser(&req); err != nil {
-		helper.Fail(c, fiber.StatusBadRequest, "JSON invalid")
+		return helper.BadRequest("JSON invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if !CanAccessUser(current, id, h.perms, "user:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data pengguna ini")
+		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data pengguna ini")
 	}
 
 	user, err := h.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "gagal mendapatkan user")
+		return translateErr(err, "user")
 	}
 
 	updated, errs := ValidatePatchUser(user, req)
 	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	updated_user, err := h.repo.Update(ctx, updated)
 	if err != nil {
-		return translateErr(c, err, "gagal memperbarui")
+		return translateErr(err, "user")
 	}
 
 	return helper.Ok(c, "berhasil memperbarui user", updated_user)
@@ -184,20 +184,20 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "can't delete user: ID Invalid")
+		return helper.BadRequest("can't delete user: ID Invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if current.UserID == id {
-		return helper.Fail(c, fiber.StatusForbidden, "tidak memiliki hak untuk menghapus user milik diri sendiri")
+		return helper.Forbidden("tidak memiliki hak untuk menghapus user milik diri sendiri")
 	}
 
 	if err := h.repo.Delete(ctx, id); err != nil {
-		return translateErr(c, err, "can't delete user")
+		return translateErr(err, "user")
 	}
 
 	return helper.NoContent(c)
@@ -209,27 +209,27 @@ func (h *UserHandler) AssignRole(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "can't delete user: ID Invalid")
+		return helper.BadRequest("can't delete user: ID Invalid")
 	}
 
 	var userAssignRole model.AssignRoleRequest
 	if err := c.BodyParser(&userAssignRole); err != nil {
-		helper.Fail(c, fiber.StatusBadRequest, "JSON invalid")
+		return helper.BadRequest("JSON invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	errs := ValidateAssignRole(current, id, userAssignRole, h.perms)
 	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	result, err := h.repo.UpdateRole(ctx, id, userAssignRole.Role)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "tidak dapat memberikan role ke user")
+		return helper.Internal(err)
 	}
 
 	return helper.Ok(c, "berhasil mengubah role", result)

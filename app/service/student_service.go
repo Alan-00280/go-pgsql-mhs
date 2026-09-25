@@ -28,7 +28,7 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 
 	students, total, err := h.repo.FindAll(ctx, q)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "fail to get student list")
+		return helper.Internal(err)
 	}
 
 	return helper.OkList(c, "student list successfully retreived", students, &model.Meta{
@@ -46,21 +46,21 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+		return helper.BadRequest("id invalid")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "can't get student data")
+		return translateErr(err, "student")
 	}
 
 	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:read:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengakses student ini")
+		return helper.Forbidden("anda tidak dapat hak untuk mengakses student ini")
 	}
 
 	return helper.Ok(c, "student found", student)
@@ -73,19 +73,19 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 
 	var req model.CreateStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verifying your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	// VALIDATION
 	if errs := ValidateCreateStudent(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	// Keunikan username TIDAK diperiksa dengan SELECT lebih dulu.
@@ -99,7 +99,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 		OwnerID:  current.UserID,
 	})
 	if err != nil {
-		return translateErr(c, err, "can't store student")
+		return translateErr(err, "student")
 	}
 
 	return helper.Created(c, "student berhasil dibuat", baru,
@@ -113,31 +113,31 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id must be a positive number")
+		return helper.BadRequest("id must be a positive number")
 	}
 
 	var req model.ReplaceStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "JSON Body invalid")
+		return helper.BadRequest("JSON Body invalid")
 	}
 
 	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "can't get student data")
+		return translateErr(err, "student")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk mengganti data student ini")
+		return helper.Forbidden("anda tidak dapat hak untuk mengganti data student ini")
 	}
 
 	// VALIDATE
 	if errs := ValidateReplaceStudent(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	// UPDATE
@@ -145,7 +145,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 		ID: id, NIM: student.NIM, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
 	})
 	if err != nil {
-		return translateErr(c, err, "can't update student")
+		return translateErr(err, "student")
 	}
 
 	return helper.Ok(c, "student successfully changed entirely", hasil)
@@ -158,40 +158,40 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	var req model.PatchStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	if IsEmptyPatchStudent(req) {
-		return helper.Fail(c, fiber.StatusBadRequest, "no data changed")
+		return helper.BadRequest("no data changed")
 	}
 
 	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "gagal mengambil data student")
+		return translateErr(err, "student")
 	}
 
 	current, ok := helper.CurentUser(c)
 	if !ok {
-		return helper.Fail(c, fiber.StatusInternalServerError, "can't verify your identity")
+		return helper.Unauthorized("can't verify your identity")
 	}
 
 	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "anda tidak dapat hak untuk memperbarui data student ini")
+		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data student ini")
 	}
 
 	newStudent, errs := ValidatePatchStudent(student, req)
 	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	result, err := h.repo.Update(ctx, newStudent)
 	if err != nil {
-		return translateErr(c, err, "student")
+		return translateErr(err, "student")
 	}
 
 	return helper.Ok(c, "student berhasil diperbarui sebagian", result)
@@ -204,11 +204,11 @@ func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	if err := h.repo.Delete(ctx, id); err != nil {
-		return translateErr(c, err, "gagal menghapus student")
+		return translateErr(err, "student")
 	}
 
 	return helper.NoContent(c)
