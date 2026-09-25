@@ -41,11 +41,11 @@ func ValidateAssignRole(
 ) map[string]string {
 	errs := map[string]string{}
 
-	req.Role = strings.TrimSpace(req.Role)
-	if req.Role == "" {
-		errs["role"] = "role wajib diisi"
-		return errs
-	}
+	// req.Role = strings.TrimSpace(req.Role)
+	// if req.Role == "" {
+	// 	errs["role"] = "role wajib diisi"
+	// 	return errs
+	// }
 
 	if !perms.IsKnownRoles(req.Role) {
 		errs["role"] = req.Role + " tidak termasuk dalam role valid: " + strings.Join(perms.KnownRoles(), ", ")

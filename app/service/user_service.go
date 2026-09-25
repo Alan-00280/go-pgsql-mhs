@@ -75,7 +75,11 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 
 	req.Username = strings.TrimSpace(req.Username)
 
-	if errs := ValidateCreateUser(req); len(errs) > 0 {
+	// if errs := ValidateCreateUser(req); len(errs) > 0 {
+	// 	return helper.Validation(errs)
+	// }
+
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -125,7 +129,11 @@ func (h *UserHandler) Replace(c *fiber.Ctx) error {
 		return helper.NotFound("user tidak ditemukan")
 	}
 
-	if errs := ValidateReplaceUser(req); len(errs) > 0 {
+	// if errs := ValidateReplaceUser(req); len(errs) > 0 {
+	// 	return helper.Validation(errs)
+	// }
+
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 

@@ -70,7 +70,7 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
 
-	if errs := ValidateRegister(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -110,7 +110,7 @@ func (s *AuthHandler) Login(c *fiber.Ctx) error {
 		return helper.BadRequest("JSON invalid!")
 	}
 
-	if errs := ValidateLogin(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 

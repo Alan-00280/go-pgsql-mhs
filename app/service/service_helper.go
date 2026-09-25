@@ -20,3 +20,12 @@ func translateErr(err error, entity string) error {
 		return nil
 	}
 }
+
+// make the total page even without decimal number
+func CountTotalPages(total, limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+
+	return (total + limit - 1) / limit
+}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
+	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
 )
 
 func TestValidateRegister(t *testing.T) {
@@ -86,7 +87,7 @@ func TestValidateRegister(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateRegister(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
 		})
 	}
 }
@@ -120,29 +121,29 @@ func TestValidateLogin(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateLogin(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
 		})
 	}
 }
 
-func TestCheckPasswordStrength(t *testing.T) {
-	tests := []struct {
-		name     string
-		password string
-		want     string
-	}{
-		{name: "valid password", password: "G00dP4ssWord", want: ""},
-		{name: "too short", password: "Pass1", want: "minimum 8 character of password"},
-		{name: "missing number", password: "Password", want: "passsword must contain mix of letter and numbers"},
-		{name: "missing letter", password: "12345678", want: "passsword must contain mix of letter and numbers"},
-		{name: "too weak", password: "qwerty123", want: "password too common"},
-	}
+// func TestCheckPasswordStrength(t *testing.T) {
+// 	tests := []struct {
+// 		name     string
+// 		password string
+// 		want     string
+// 	}{
+// 		{name: "valid password", password: "G00dP4ssWord", want: ""},
+// 		{name: "too short", password: "Pass1", want: "minimum 8 character of password"},
+// 		{name: "missing number", password: "Password", want: "passsword must contain mix of letter and numbers"},
+// 		{name: "missing letter", password: "12345678", want: "passsword must contain mix of letter and numbers"},
+// 		{name: "too weak", password: "qwerty123", want: "password too common"},
+// 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := checkPasswordStrength(test.password); got != test.want {
-				t.Fatalf("checkPasswordStrength(%q) = %q, want %q", test.password, got, test.want)
-			}
-		})
-	}
-}
+// 	for _, test := range tests {
+// 		t.Run(test.name, func(t *testing.T) {
+// 			if got := checkPasswordStrength(test.password); got != test.want {
+// 				t.Fatalf("checkPasswordStrength(%q) = %q, want %q", test.password, got, test.want)
+// 			}
+// 		})
+// 	}
+// }

@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bufio"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,36 +26,64 @@ func newValidator() *validator.Validate {
 			return field.Name
 		}
 
-		// self-made rules
-		// nospace --> cek space / tab / new-line / return
-		_ = v.RegisterValidation("nospace", func(fl validator.FieldLevel) bool {
-			return !strings.Contains(fl.Field().String(), " \t\n\r")
-		})
-
-		// username --> cek hanya berupa letter / nomor / titik / underscore
-		_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
-			for _, r := range fl.Field().String() {
-				if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '_' {
-					return false
-				}
-			}
-
-			return true
-		})
-
-		// strongpassword --> menggunakan function checkPasswordStrength()
-		_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
-			return checkPasswordStrength(fl.Field().String()) != ""
-		})
-
-		// TODO
-		// NIM
-		// Tahun Angkatan
-
 		return name
 	})
 
+	// self-made rules
+	// nospace --> cek space / tab / new-line / return
+	_ = v.RegisterValidation("nospace", func(fl validator.FieldLevel) bool {
+		return !strings.Contains(fl.Field().String(), " \t\n\r")
+	})
+
+	// username --> cek hanya berupa letter / nomor / titik / underscore
+	_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+		for _, r := range fl.Field().String() {
+			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '_' {
+				return false
+			}
+		}
+
+		return true
+	})
+
+	// strongpassword --> menggunakan function checkPasswordStrength()
+	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
+		return checkPasswordStrength(fl.Field().String()) == ""
+	})
+
+	// TODO
+	// NIM --> tidak dimulai angka 0, tiga digit id tengah bukan 000
+	_ = v.RegisterValidation("nim", func(fl validator.FieldLevel) bool {
+		return checkNIM(fl.Field().String())
+	})
+
 	return v
+}
+
+func ValidateStruct(s any) map[string]string {
+	err := validate.Struct(s)
+	if err == nil {
+		return nil
+	}
+
+	var invalid *validator.InvalidValidationError
+	if errors.As(err, &invalid) {
+		return map[string]string{"_": "objek yang divalidasi tidak sah"}
+	}
+
+	var fieldErrors validator.ValidationErrors
+	if !errors.As(err, &fieldErrors) {
+		return map[string]string{"_": "validasi gagal"}
+	}
+
+	result := make(map[string]string, len(fieldErrors))
+	for _, fe := range fieldErrors {
+		if _, exists := result[fe.Field()]; !exists {
+			result[fe.Field()] = messageFor(fe)
+		}
+	}
+
+	return result
 }
 
 func messageFor(fe validator.FieldError) string {
@@ -86,7 +115,9 @@ func messageFor(fe validator.FieldError) string {
 		return "password tidak memenuhi syarat"
 	case "oneof":
 		return "harus salah satu dari " + strings.ReplaceAll(fe.Param(), " ", ", ")
-	// todo : NIM, Tahun Angkatan
+	// todo : NIM
+	case "nim":
+		return "pola tidak memenuhi"
 	default:
 		return "tidak memenuhi aturan " + fe.Tag()
 	}
@@ -111,7 +142,7 @@ func checkPasswordStrength(password string) string {
 		return "passsword must contain mix of letter and numbers"
 	}
 
-	password_path, err := filepath.Abs("./files/common_password.txt")
+	password_path, err := filepath.Abs("../files/common_password.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -135,4 +166,16 @@ func checkPasswordStrength(password string) string {
 	}
 
 	return ""
+}
+
+func checkNIM(nim string) bool {
+	if nim[0] == '0' {
+		return false
+	}
+
+	if nim[3:6] == "000" {
+		return false
+	}
+
+	return true
 }

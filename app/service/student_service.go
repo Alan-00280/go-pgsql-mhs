@@ -84,7 +84,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 	}
 
 	// VALIDATION
-	if errs := ValidateCreateStudent(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -136,7 +136,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 	}
 
 	// VALIDATE
-	if errs := ValidateReplaceStudent(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -184,10 +184,12 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data student ini")
 	}
 
-	newStudent, errs := ValidatePatchStudent(student, req)
+	errs := helper.ValidateStruct(req)
 	if len(errs) > 0 {
 		return helper.Validation(errs)
 	}
+
+	newStudent := ApplyPatchStudent(student, req)
 
 	result, err := h.repo.Update(ctx, newStudent)
 	if err != nil {
