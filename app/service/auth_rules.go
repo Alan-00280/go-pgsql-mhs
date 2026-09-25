@@ -1,19 +1,12 @@
 package service
 
 import (
-	"bufio"
 	"net/mail"
-	"os"
-	"path/filepath"
 	"strings"
 	"unicode"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
 )
-
-// TODO
-// buat konstanta minPasswordLength bernilai 8
-const minPasswordLength = 8
 
 // buat functions yang mengembalikan errs map[string]string
 // antara lain:
@@ -39,9 +32,9 @@ func ValidateRegister(req model.RegisterReq) map[string]string {
 		errs["email"] = "email invalid!"
 	}
 
-	if msg := checkPasswordStrength(req.Password); msg != "" {
-		errs["password"] = msg
-	}
+	// if msg := checkPasswordStrength(req.Password); msg != "" {
+	// 	errs["password"] = msg
+	// }
 
 	return errs
 }
@@ -68,51 +61,6 @@ func ValidateLogin(req model.LoginReq) map[string]string {
 // checkPasswordStrength(password string) string
 // isValidUsername(username string) bool
 // isValidEmail(email string) bool
-
-func checkPasswordStrength(password string) string {
-	if len(password) < minPasswordLength {
-		return "minimum 8 character of password"
-	}
-
-	var hasLetter, hasDigit bool = false, false
-	for _, c := range password {
-		switch {
-		case unicode.IsLetter(c):
-			hasLetter = true
-		case unicode.IsDigit(c):
-			hasDigit = true
-		}
-	}
-
-	if !hasLetter || !hasDigit {
-		return "passsword must contain mix of letter and numbers"
-	}
-
-	password_path, err := filepath.Abs("./files/common_password.txt")
-	if err != nil {
-		panic(err)
-	}
-
-	file, err := os.Open(password_path)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		weak_password := scanner.Text()
-		if password == weak_password {
-			return "password too common"
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-
-	return ""
-}
 
 func isValidEmail(email string) bool {
 	_, err := mail.ParseAddress(email)
