@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 // Amplop baku untuk semua respons
 type WebResponse struct {
 	Success bool   `json:"success"`
@@ -25,4 +27,22 @@ type ListQuery struct {
 	IsActive *bool
 	*StudentFilter
 	*UserFilter
+}
+
+type Cursor struct {
+	CreatedAt time.Time
+	ID        int
+}
+
+type CursorMeta struct {
+	Limit      int    `json:"limit"`
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+}
+
+type CursorQuery struct {
+	Search   string
+	Limit    int
+	IsActive *bool
+	After    *Cursor
 }
