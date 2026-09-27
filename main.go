@@ -91,7 +91,7 @@ func main() {
 	)
 
 	studentRepo := repository.NewStudentRepository(pool)
-	studentService := service.NewStudentHandler(studentRepo, permissionSet)
+	studentService := service.NewStudentHandler(studentRepo, permissionSet, appValidator)
 
 	deps := route.Dependencies{
 		Pool:           pool,

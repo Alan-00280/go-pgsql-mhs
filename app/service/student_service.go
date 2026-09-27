@@ -16,7 +16,7 @@ type StudentHandler struct {
 	appValidator *helper.AppValidator
 }
 
-func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet) *StudentHandler {
+func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *StudentHandler {
 	return &StudentHandler{repo: repo, perms: perms}
 }
 
