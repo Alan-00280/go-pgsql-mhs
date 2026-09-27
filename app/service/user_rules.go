@@ -43,9 +43,7 @@ import (
 // 	return errs
 // }
 
-func ValidatePatchUser(current model.User, req model.PatchUserRequest) (model.User, map[string]string) {
-	errs := map[string]string{}
-
+func ValidatePatchUser(current model.User, req model.PatchUserRequest) model.User {
 	if req.Username != nil {
 		current.Username = strings.TrimSpace(*req.Username)
 	}
@@ -58,7 +56,7 @@ func ValidatePatchUser(current model.User, req model.PatchUserRequest) (model.Us
 		current.IsActive = *req.IsActive
 	}
 
-	return current, errs
+	return current
 }
 
 func IsEmptyPatchUser(req model.PatchUserRequest) bool {

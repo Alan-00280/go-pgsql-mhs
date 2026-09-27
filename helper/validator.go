@@ -1,10 +1,7 @@
 package helper
 
 import (
-	"bufio"
 	"errors"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"unicode"
@@ -14,9 +11,14 @@ import (
 
 const minPasswordLength = 8
 
-var validate = newValidator()
+// var validate = newValidator()
 
-func newValidator() *validator.Validate {
+type AppValidator struct {
+	validate          *validator.Validate
+	passwordCommonSet *PasswordCommonSet
+}
+
+func NewValidator(passwordCommonSet *PasswordCommonSet) *AppValidator {
 	v := validator.New()
 
 	v.RegisterTagNameFunc(func(field reflect.StructField) string {
@@ -48,7 +50,7 @@ func newValidator() *validator.Validate {
 
 	// strongpassword --> menggunakan function checkPasswordStrength()
 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
-		return checkPasswordStrength(fl.Field().String()) == ""
+		return checkPasswordStrength(fl.Field().String(), *passwordCommonSet) == ""
 	})
 
 	// TODO
@@ -57,10 +59,59 @@ func newValidator() *validator.Validate {
 		return checkNIM(fl.Field().String())
 	})
 
-	return v
+	return &AppValidator{
+		validate:          v,
+		passwordCommonSet: passwordCommonSet,
+	}
 }
 
-func ValidateStruct(s any) map[string]string {
+// func newValidator() *validator.Validate {
+// 	v := validator.New()
+
+// 	v.RegisterTagNameFunc(func(field reflect.StructField) string {
+// 		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
+
+// 		if name == "" || name == "-" {
+// 			return field.Name
+// 		}
+
+// 		return name
+// 	})
+
+// 	// self-made rules
+// 	// nospace --> cek space / tab / new-line / return
+// 	_ = v.RegisterValidation("nospace", func(fl validator.FieldLevel) bool {
+// 		return !strings.Contains(fl.Field().String(), " \t\n\r")
+// 	})
+
+// 	// username --> cek hanya berupa letter / nomor / titik / underscore
+// 	_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+// 		for _, r := range fl.Field().String() {
+// 			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '_' {
+// 				return false
+// 			}
+// 		}
+
+// 		return true
+// 	})
+
+// 	// strongpassword --> menggunakan function checkPasswordStrength()
+// 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
+// 		return checkPasswordStrength(fl.Field().String()) == ""
+// 	})
+
+// 	// TODO
+// 	// NIM --> tidak dimulai angka 0, tiga digit id tengah bukan 000
+// 	_ = v.RegisterValidation("nim", func(fl validator.FieldLevel) bool {
+// 		return checkNIM(fl.Field().String())
+// 	})
+
+// 	return v
+// }
+
+func ValidateStruct(s any, appValidator AppValidator) map[string]string {
+	validate := appValidator.validate
+
 	err := validate.Struct(s)
 	if err == nil {
 		return nil
@@ -79,14 +130,14 @@ func ValidateStruct(s any) map[string]string {
 	result := make(map[string]string, len(fieldErrors))
 	for _, fe := range fieldErrors {
 		if _, exists := result[fe.Field()]; !exists {
-			result[fe.Field()] = messageFor(fe)
+			result[fe.Field()] = messageFor(fe, appValidator)
 		}
 	}
 
 	return result
 }
 
-func messageFor(fe validator.FieldError) string {
+func messageFor(fe validator.FieldError, appValidator AppValidator) string {
 	switch fe.Tag() {
 	case "required":
 		return "wajib diisi"
@@ -110,7 +161,7 @@ func messageFor(fe validator.FieldError) string {
 		return "hanya boleh huruf, angka, titik, garis bawah"
 	case "strongpassword":
 		if value, ok := fe.Value().(string); ok {
-			return checkPasswordStrength(value)
+			return checkPasswordStrength(value, *appValidator.passwordCommonSet)
 		}
 		return "password tidak memenuhi syarat"
 	case "oneof":
@@ -123,7 +174,8 @@ func messageFor(fe validator.FieldError) string {
 	}
 }
 
-func checkPasswordStrength(password string) string {
+func checkPasswordStrength(password string, passwordCommonSet PasswordCommonSet) string {
+
 	if len(password) < minPasswordLength {
 		return "minimum 8 character of password"
 	}
@@ -142,27 +194,32 @@ func checkPasswordStrength(password string) string {
 		return "passsword must contain mix of letter and numbers"
 	}
 
-	password_path, err := filepath.Abs("../files/common_password.txt")
-	if err != nil {
-		panic(err)
-	}
+	// password_path, err := filepath.Abs("./files/common_password.txt")
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	file, err := os.Open(password_path)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
+	// file, err := os.Open(password_path)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		weak_password := scanner.Text()
-		if password == weak_password {
-			return "password too common"
-		}
-	}
+	// scanner := bufio.NewScanner(file)
+	// for scanner.Scan() {
+	// 	weak_password := scanner.Text()
+	// 	if password == weak_password {
+	// 		return "password too common"
+	// 	}
+	// }
 
-	if err := scanner.Err(); err != nil {
-		panic(err)
+	// if err := scanner.Err(); err != nil {
+	// 	panic(err)
+	// }
+
+	commonSet := passwordCommonSet.PasswordSet
+	if _, exists := commonSet[password]; exists {
+		return "password too common"
 	}
 
 	return ""

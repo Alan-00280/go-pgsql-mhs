@@ -11,6 +11,14 @@ type WebResponse struct {
 	Errors  any    `json:"errors,omitempty"`
 }
 
+type WebResponseCursor struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Data    any         `json:"data,omitempty"`
+	Meta    *CursorMeta `json:"meta,omitempty"`
+	Errors  any         `json:"errors,omitempty"`
+}
+
 type Meta struct {
 	Page       int `json:"page"`
 	Limit      int `json:"limit"`

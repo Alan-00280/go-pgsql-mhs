@@ -31,6 +31,7 @@ type AuthHandler struct {
 	jwt        *helper.JWTManager
 	refreshTTL time.Duration
 	perms      *helper.PermissionSet
+	appValidator *helper.AppValidator
 }
 
 // buat function yang mengembalikan struct *AuthService dengan parameter sama dengan atribut2 nya
@@ -40,6 +41,7 @@ func NewAuthHandler(
 	jwt *helper.JWTManager,
 	refreshTTL time.Duration,
 	perms *helper.PermissionSet,
+	appValidator *helper.AppValidator,
 ) *AuthHandler {
 	return &AuthHandler{
 		users:      users,
@@ -47,6 +49,7 @@ func NewAuthHandler(
 		jwt:        jwt,
 		refreshTTL: refreshTTL,
 		perms:      perms,
+		appValidator: appValidator,
 	}
 }
 
@@ -70,7 +73,7 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
 
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *s.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -110,7 +113,7 @@ func (s *AuthHandler) Login(c *fiber.Ctx) error {
 		return helper.BadRequest("JSON invalid!")
 	}
 
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *s.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 

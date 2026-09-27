@@ -1,6 +1,7 @@
 package service
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
@@ -85,9 +86,23 @@ func TestValidateRegister(t *testing.T) {
 		},
 	}
 
+	// Load Common Password
+	passwordCommonPath, err := filepath.Abs("../../files/common_password.txt")
+	if err != nil {
+		t.Errorf("can't load common password: %s", err)
+	}
+
+	passwordCommonSet, err := helper.NewPasswordCommonSet(passwordCommonPath)
+	if err != nil {
+		t.Errorf("can't load common password: %s", err)
+	}
+
+	// App Validator
+	appValidator := helper.NewValidator(passwordCommonSet)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
@@ -119,31 +134,23 @@ func TestValidateLogin(t *testing.T) {
 		},
 	}
 
+	// Load Common Password
+	passwordCommonPath, err := filepath.Abs("../../files/common_password.txt")
+	if err != nil {
+		t.Errorf("can't load common password: %s", err)
+	}
+
+	passwordCommonSet, err := helper.NewPasswordCommonSet(passwordCommonPath)
+	if err != nil {
+		t.Errorf("can't load common password: %s", err)
+	}
+
+	// App Validator
+	appValidator := helper.NewValidator(passwordCommonSet)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
-
-// func TestCheckPasswordStrength(t *testing.T) {
-// 	tests := []struct {
-// 		name     string
-// 		password string
-// 		want     string
-// 	}{
-// 		{name: "valid password", password: "G00dP4ssWord", want: ""},
-// 		{name: "too short", password: "Pass1", want: "minimum 8 character of password"},
-// 		{name: "missing number", password: "Password", want: "passsword must contain mix of letter and numbers"},
-// 		{name: "missing letter", password: "12345678", want: "passsword must contain mix of letter and numbers"},
-// 		{name: "too weak", password: "qwerty123", want: "password too common"},
-// 	}
-
-// 	for _, test := range tests {
-// 		t.Run(test.name, func(t *testing.T) {
-// 			if got := checkPasswordStrength(test.password); got != test.want {
-// 				t.Fatalf("checkPasswordStrength(%q) = %q, want %q", test.password, got, test.want)
-// 			}
-// 		})
-// 	}
-// }

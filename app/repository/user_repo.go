@@ -105,7 +105,9 @@ func (r *UserPGRepository) FindAll(ctx context.Context, q model.ListQuery) ([]mo
 func (r *UserPGRepository) FindByID(ctx context.Context, id int) (model.User, error) {
 	result := model.User{}
 
-	if err := r.pool.QueryRow(ctx, "SELECT %s FROM users WHERE id = $1", userColumns, id).Scan(&result.ID, &result.Username, &result.Email, &result.Role, &result.IsActive, &result.CreatedAt); err != nil {
+	query := fmt.Sprintf("SELECT %s FROM users WHERE id = $1", userColumns)
+
+	if err := r.pool.QueryRow(ctx, query, id).Scan(&result.ID, &result.Username, &result.Email, &result.Role, &result.IsActive, &result.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.User{}, ErrNotFound
 		}
@@ -159,8 +161,7 @@ func (r *UserPGRepository) FindByUsername(
 	var u model.User
 
 	err := r.pool.QueryRow(ctx,
-		`SELECT %s
-         FROM users WHERE LOWER(username) = LOWER($1)`, userColumns, username,
+		`SELECT id, username, email, password, role, is_active, created_at FROM users WHERE LOWER(username) = LOWER($1)`, username,
 	).Scan(&u.ID, &u.Username, &u.Email, &u.Password, &u.Role,
 		&u.IsActive, &u.CreatedAt)
 
@@ -214,7 +215,7 @@ func (r *UserPGRepository) FindAfterCursor(
 	}
 	if q.After != nil {
 		args = append(args, q.After.CreatedAt, q.After.ID)
-		where += fmt.Sprintf(" AND (created_at, id) < (%d, %d)", len(args)-1, len(args))
+		where += fmt.Sprintf(" AND (created_at, id) < ($%d, $%d)", len(args)-1, len(args))
 	}
 
 	args = append(args, q.Limit+1)

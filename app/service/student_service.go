@@ -11,8 +11,9 @@ import (
 )
 
 type StudentHandler struct {
-	repo  repository.StudentRepository
-	perms *helper.PermissionSet
+	repo         repository.StudentRepository
+	perms        *helper.PermissionSet
+	appValidator *helper.AppValidator
 }
 
 func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet) *StudentHandler {
@@ -84,7 +85,7 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 	}
 
 	// VALIDATION
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -136,7 +137,7 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 	}
 
 	// VALIDATE
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -184,11 +185,10 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data student ini")
 	}
 
-	errs := helper.ValidateStruct(req)
+	errs := helper.ValidateStruct(req, *h.appValidator)
 	if len(errs) > 0 {
 		return helper.Validation(errs)
 	}
-
 	newStudent := ApplyPatchStudent(student, req)
 
 	result, err := h.repo.Update(ctx, newStudent)

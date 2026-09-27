@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -59,9 +60,25 @@ func main() {
 	permissionSet := helper.NewPermissionSet(rawRolePerm)
 	logger.Info("berhasil memuat role permission", slog.Any("roles", permissionSet.KnownRoles()))
 
+	// Load Common Password
+	passwordCommonPath, err := filepath.Abs("./files/common_password.txt")
+	if err != nil {
+		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	passwordCommonSet, err := helper.NewPasswordCommonSet(passwordCommonPath)
+	if err != nil {
+		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	// App Validator
+	appValidator := helper.NewValidator(passwordCommonSet)
+
 	// Repo -> Services
 	userRepo := repository.NewUserRepository(pool)
-	userService := service.NewUserHandler(userRepo, permissionSet)
+	userService := service.NewUserHandler(userRepo, permissionSet, appValidator)
 
 	authRepo := repository.NewAuthRepo(pool)
 	authService := service.NewAuthHandler(
@@ -70,6 +87,7 @@ func main() {
 		jwtManager,
 		time.Duration(config.GetEnvInt("JWT_REFRESH_TTL_DAYS", 7))*24*time.Hour,
 		permissionSet,
+		appValidator,
 	)
 
 	studentRepo := repository.NewStudentRepository(pool)

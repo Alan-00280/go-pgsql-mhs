@@ -39,9 +39,12 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
@@ -68,9 +71,12 @@ func TestValidateReplace(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, helper.ValidateStruct(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
@@ -114,10 +120,13 @@ func TestValidatePatch(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			current := model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true}
-			errs := helper.ValidateStruct(test.req)
+			errs := helper.ValidateStruct(test.req, *appValidator)
 			assertErrorKeys(t, errs, test.wantErrors)
 
 			if len(errs) == 0 {

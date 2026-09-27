@@ -11,31 +11,54 @@ import (
 )
 
 type UserHandler struct {
-	repo  repository.UserRepository
-	perms *helper.PermissionSet
+	repo         repository.UserRepository
+	perms        *helper.PermissionSet
+	appValidator *helper.AppValidator
 }
 
-func NewUserHandler(repo repository.UserRepository, perms *helper.PermissionSet) *UserHandler {
-	return &UserHandler{repo: repo, perms: perms}
+func NewUserHandler(repo repository.UserRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *UserHandler {
+	return &UserHandler{repo: repo, perms: perms, appValidator: appValidator}
 }
 
 func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
-	q := helper.ParseListQuery(c)
+	// q := helper.ParseListQuery(c)
+	q := helper.ParseCursorQuery(c)
 
-	users, total, err := h.repo.FindAll(ctx, q)
+	// users, total, err := h.repo.FindAll(ctx, q)
+	// if err != nil {
+	// 	return helper.Internal(err)
+	// }
+
+	// return helper.OkList(c, "berhasil mendapatkan semua user", users, &model.Meta{
+	// 	Page:       q.Page,
+	// 	Limit:      q.Limit,
+	// 	TotalPages: CountTotalPages(total, q.Limit),
+	// 	Total:      total,
+	// })
+
+	rows, err := h.repo.FindAfterCursor(ctx, q)
+
 	if err != nil {
 		return helper.Internal(err)
 	}
 
-	return helper.OkList(c, "berhasil mendapatkan semua user", users, &model.Meta{
-		Page:       q.Page,
-		Limit:      q.Limit,
-		TotalPages: CountTotalPages(total, q.Limit),
-		Total:      total,
-	})
+	// Baris tambahan hasil limit+1 dipotong di sini. Ia hanya penanda bahwa
+	// masih ada halaman berikutnya, bukan bagian dari halaman ini.
+	hasMore := len(rows) > q.Limit
+	if hasMore {
+		rows = rows[:q.Limit]
+	}
+
+	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		meta.NextCursor = helper.EncodeCursor(last.CreatedAt, last.ID)
+	}
+
+	return helper.SuccessCursor(c, "daftar user berhasil diambil", rows, meta)
 }
 
 func (h *UserHandler) Get(c *fiber.Ctx) error {
@@ -79,7 +102,7 @@ func (h *UserHandler) Create(c *fiber.Ctx) error {
 	// 	return helper.Validation(errs)
 	// }
 
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -133,7 +156,7 @@ func (h *UserHandler) Replace(c *fiber.Ctx) error {
 	// 	return helper.Validation(errs)
 	// }
 
-	if errs := helper.ValidateStruct(req); len(errs) > 0 {
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
 
@@ -173,10 +196,14 @@ func (h *UserHandler) Patch(c *fiber.Ctx) error {
 		return translateErr(err, "user")
 	}
 
-	updated, errs := ValidatePatchUser(user, req)
-	if len(errs) > 0 {
+	if IsEmptyPatchUser(req) {
+		return helper.BadRequest("Request Body Kosong!")
+	}
+
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
 		return helper.Validation(errs)
 	}
+	updated := ValidatePatchUser(user, req)
 
 	updated_user, err := h.repo.Update(ctx, updated)
 	if err != nil {

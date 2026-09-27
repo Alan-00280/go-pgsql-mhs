@@ -94,6 +94,28 @@ func ParseListQuery(c *fiber.Ctx) model.ListQuery {
 	return q
 }
 
+func ParseCursorQuery(c *fiber.Ctx) model.CursorQuery {
+	q := model.CursorQuery{
+		Search: strings.TrimSpace(c.Query("search")),
+		Limit: 10,
+	}
+
+	if raw := c.Query("is_active"); raw != "" {
+		if v, err := strconv.ParseBool(raw); err != nil {
+			q.IsActive = &v
+		}
+	} 
+
+	if encodedCursor := strings.TrimSpace(c.Query("cursor")); encodedCursor != "" {
+		decoded, err := DecodeCursor(encodedCursor)
+		if err == nil {
+			q.After = &decoded
+		}
+	}
+
+	return q
+}
+
 func ReqCtx(c *fiber.Ctx) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(c.UserContext(), 5*time.Second)
 }
