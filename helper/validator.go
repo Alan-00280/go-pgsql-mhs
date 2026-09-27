@@ -166,6 +166,13 @@ func messageFor(fe validator.FieldError, appValidator AppValidator) string {
 		return "password tidak memenuhi syarat"
 	case "oneof":
 		return "harus salah satu dari " + strings.ReplaceAll(fe.Param(), " ", ", ")
+	case "len":
+		if fe.Kind() == reflect.String {
+			return "panjang harus tepat " + fe.Param() + " karakter"
+		}
+		return "panjang harus tepat " + fe.Param()
+	case "numeric":
+		return "karakter harus berupa angka"
 	// todo : NIM
 	case "nim":
 		return "pola tidak memenuhi"

@@ -17,7 +17,7 @@ type StudentHandler struct {
 }
 
 func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *StudentHandler {
-	return &StudentHandler{repo: repo, perms: perms}
+	return &StudentHandler{repo: repo, perms: perms, appValidator: appValidator}
 }
 
 // GET - Get All Students
