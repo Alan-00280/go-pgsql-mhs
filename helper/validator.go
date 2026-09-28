@@ -53,8 +53,7 @@ func NewValidator(passwordCommonSet *PasswordCommonSet) *AppValidator {
 		return checkPasswordStrength(fl.Field().String(), *passwordCommonSet) == ""
 	})
 
-	// TODO
-	// NIM --> tidak dimulai angka 0, tiga digit id tengah bukan 000
+	// NIM --> tidak dimulai angka 0, tiga digit di tengah bukan 000, tiga digit di akhir bukan 000
 	_ = v.RegisterValidation("nim", func(fl validator.FieldLevel) bool {
 		return checkNIM(fl.Field().String())
 	})
@@ -64,50 +63,6 @@ func NewValidator(passwordCommonSet *PasswordCommonSet) *AppValidator {
 		passwordCommonSet: passwordCommonSet,
 	}
 }
-
-// func newValidator() *validator.Validate {
-// 	v := validator.New()
-
-// 	v.RegisterTagNameFunc(func(field reflect.StructField) string {
-// 		name := strings.SplitN(field.Tag.Get("json"), ",", 2)[0]
-
-// 		if name == "" || name == "-" {
-// 			return field.Name
-// 		}
-
-// 		return name
-// 	})
-
-// 	// self-made rules
-// 	// nospace --> cek space / tab / new-line / return
-// 	_ = v.RegisterValidation("nospace", func(fl validator.FieldLevel) bool {
-// 		return !strings.Contains(fl.Field().String(), " \t\n\r")
-// 	})
-
-// 	// username --> cek hanya berupa letter / nomor / titik / underscore
-// 	_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
-// 		for _, r := range fl.Field().String() {
-// 			if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '.' && r != '_' {
-// 				return false
-// 			}
-// 		}
-
-// 		return true
-// 	})
-
-// 	// strongpassword --> menggunakan function checkPasswordStrength()
-// 	_ = v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
-// 		return checkPasswordStrength(fl.Field().String()) == ""
-// 	})
-
-// 	// TODO
-// 	// NIM --> tidak dimulai angka 0, tiga digit id tengah bukan 000
-// 	_ = v.RegisterValidation("nim", func(fl validator.FieldLevel) bool {
-// 		return checkNIM(fl.Field().String())
-// 	})
-
-// 	return v
-// }
 
 func ValidateStruct(s any, appValidator AppValidator) map[string]string {
 	validate := appValidator.validate
@@ -173,7 +128,6 @@ func messageFor(fe validator.FieldError, appValidator AppValidator) string {
 		return "panjang harus tepat " + fe.Param()
 	case "numeric":
 		return "karakter harus berupa angka"
-	// todo : NIM
 	case "nim":
 		return "pola tidak memenuhi"
 	default:
@@ -201,29 +155,6 @@ func checkPasswordStrength(password string, passwordCommonSet PasswordCommonSet)
 		return "passsword must contain mix of letter and numbers"
 	}
 
-	// password_path, err := filepath.Abs("./files/common_password.txt")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// file, err := os.Open(password_path)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer file.Close()
-
-	// scanner := bufio.NewScanner(file)
-	// for scanner.Scan() {
-	// 	weak_password := scanner.Text()
-	// 	if password == weak_password {
-	// 		return "password too common"
-	// 	}
-	// }
-
-	// if err := scanner.Err(); err != nil {
-	// 	panic(err)
-	// }
-
 	commonSet := passwordCommonSet.PasswordSet
 	if _, exists := commonSet[password]; exists {
 		return "password too common"
@@ -237,7 +168,7 @@ func checkNIM(nim string) bool {
 		return false
 	}
 
-	if nim[3:6] == "000" {
+	if nim[3:6] == "000" || nim[6:9] == "000" {
 		return false
 	}
 

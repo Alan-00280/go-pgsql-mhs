@@ -10,13 +10,10 @@ import (
 func translateErr(err error, entity string) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		// return helper.Fail(c, fiber.StatusNotFound, "data can't be found")
 		return helper.NotFound(entity + " can't be found")
 	case errors.Is(err, repository.ErrDuplicate):
-		// return helper.Fail(c, fiber.StatusConflict, "data already used")
 		return helper.Conflict("data already used")
 	default:
-		// return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
 		return helper.Internal(err)
 	}
 }
