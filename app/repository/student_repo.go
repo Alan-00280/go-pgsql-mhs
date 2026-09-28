@@ -31,6 +31,7 @@ type StudentRepository interface {
 	Create(ctx context.Context, u model.Student) (model.Student, error)
 	Update(ctx context.Context, u model.Student) (model.Student, error)
 	Delete(ctx context.Context, id int) error
+	FindAfterCursor(ctx context.Context, q model.CursorQuery) ([]model.Student, error)
 }
 
 var sortColumnStudent = map[string]string{
@@ -65,15 +66,55 @@ func buildFilterStudent(q model.ListQuery) (string, []any) {
 		args = append(args, *q.IsActive)
 	}
 
-	if q.GradeFilter != nil {
-		if q.GradeFilter.StartGrade >= 0.00 {
+	if q.StudentFilter != nil {
+		if q.StudentFilter.StartGrade >= 0.00 {
 			where += fmt.Sprintf(" AND grade >= $%d", len(args)+1)
-			args = append(args, q.GradeFilter.StartGrade)
+			args = append(args, q.StudentFilter.StartGrade)
 		}
 
-		if q.GradeFilter.EndGrade <= 4.00 {
+		if q.StudentFilter.EndGrade <= 4.00 {
 			where += fmt.Sprintf(" AND grade <= $%d", len(args)+1)
-			args = append(args, q.GradeFilter.EndGrade)
+			args = append(args, q.StudentFilter.EndGrade)
+		}
+
+		if q.StudentFilter.OwnerID != nil && *q.StudentFilter.OwnerID > 0 {
+			where += fmt.Sprintf(" AND owner_id = $%d", len(args)+1)
+			args = append(args, q.StudentFilter.OwnerID)
+		}
+	}
+
+	return where, args
+}
+
+func buildFilterStudentCursor(q model.CursorQuery) (string, []any) {
+	where := " WHERE 1=1"
+	args := []any{}
+
+	if q.Search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR nim ILIKE $%d)",
+			len(args)+1, len(args)+1)
+		args = append(args, "%"+q.Search+"%")
+	}
+
+	if q.IsActive != nil {
+		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
+		args = append(args, *q.IsActive)
+	}
+
+	if q.StudentFilter != nil {
+		if q.StudentFilter.StartGrade >= 0.00 {
+			where += fmt.Sprintf(" AND grade >= $%d", len(args)+1)
+			args = append(args, q.StudentFilter.StartGrade)
+		}
+
+		if q.StudentFilter.EndGrade <= 4.00 {
+			where += fmt.Sprintf(" AND grade <= $%d", len(args)+1)
+			args = append(args, q.StudentFilter.EndGrade)
+		}
+
+		if q.StudentFilter.OwnerID != nil && *q.StudentFilter.OwnerID > 0 {
+			where += fmt.Sprintf(" AND owner_id = $%d", len(args)+1)
+			args = append(args, q.StudentFilter.OwnerID)
 		}
 	}
 
@@ -96,7 +137,7 @@ func (r *StudentPGRepository) FindAll(
 	}
 
 	sqlText := fmt.Sprintf(
-		`SELECT id, nim, name, grade, is_active, created_at 
+		`SELECT id, nim, name, grade, is_active, created_at, owner_id 
 		FROM students %s
 		ORDER BY %s %s 
 		LIMIT $%d OFFSET $%d`,
@@ -113,7 +154,7 @@ func (r *StudentPGRepository) FindAll(
 	result := []model.Student{}
 	for rows.Next() {
 		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 			return nil, 0, fmt.Errorf("[ERROR] scan student query: %w", err)
 		}
 		result = append(result, s)
@@ -132,8 +173,8 @@ func (r *StudentPGRepository) FindById(
 	var s model.Student
 
 	if err := r.pool.QueryRow(ctx,
-		"SELECT id, nim, name, grade, is_active, created_at FROM students WHERE id = $1", id,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+		"SELECT id, nim, name, grade, is_active, created_at, owner_id FROM students WHERE id = $1", id,
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
@@ -147,10 +188,10 @@ func (r *StudentPGRepository) Create(
 	ctx context.Context, s model.Student,
 ) (model.Student, error) {
 	if err := r.pool.QueryRow(ctx,
-		`INSERT INTO students (nim, name, grade, is_active)
-         VALUES ($1, $2, $3, $4)
+		`INSERT INTO students (nim, name, grade, is_active, owner_id)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id, created_at`,
-		s.NIM, s.Name, s.Grade, s.IsActive,
+		s.NIM, s.Name, s.Grade, s.IsActive, s.OwnerID,
 	).Scan(&s.ID, &s.CreatedAt); err != nil {
 		if isUniqueViolation(err) {
 			return model.Student{}, ErrDuplicate
@@ -168,9 +209,9 @@ func (r *StudentPGRepository) Update(
 	if err := r.pool.QueryRow(ctx,
 		`UPDATE students SET nim = $1, name = $2, grade = $3, is_active = $4
          WHERE id = $5
-         RETURNING id, nim, name, grade, is_active, created_at`,
+         RETURNING id, nim, name, grade, is_active, created_at, owner_id`,
 		s.NIM, s.Name, s.Grade, s.IsActive, s.ID,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Student{}, ErrNotFound
 		}
@@ -196,4 +237,50 @@ func (r *StudentPGRepository) Delete(
 	}
 
 	return nil
+}
+
+func (r *StudentPGRepository) FindAfterCursor(
+	ctx context.Context,
+	q model.CursorQuery,
+) ([]model.Student, error) {
+	filters, args := buildFilterStudentCursor(q)
+
+	if q.After != nil {
+		args = append(args, q.After.CreatedAt, q.After.ID)
+		filters += fmt.Sprintf(" AND (created_at, id) < ($%d, $%d)", len(args)-1, len(args))
+	}
+
+	args = append(args, q.Limit+1)
+
+	query := fmt.Sprintf("SELECT id, nim, name, grade, is_active, created_at, owner_id FROM students%s ORDER BY created_at DESC, id DESC LIMIT $%d", filters, len(args))
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+	}
+	defer rows.Close()
+
+	result := []model.Student{}
+	for rows.Next() {
+		student, err := scanStudent(rows)
+		if err != nil {
+			return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+		}
+		result = append(result, student)
+	}
+	if err = rows.Err(); err != nil {
+		return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+	}
+
+	return result, nil
+}
+
+func scanStudent(rows pgx.Rows) (model.Student, error) {
+	var s model.Student
+
+	if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
+		return model.Student{}, err
+	}
+
+	return s, nil
 }

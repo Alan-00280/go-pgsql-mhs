@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
+	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
 )
 
 func TestValidateCreate(t *testing.T) {
@@ -38,9 +39,12 @@ func TestValidateCreate(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateCreateStudent(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
@@ -67,9 +71,12 @@ func TestValidateReplace(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assertErrorKeys(t, ValidateReplaceStudent(test.req), test.want)
+			assertErrorKeys(t, helper.ValidateStruct(test.req, *appValidator), test.want)
 		})
 	}
 }
@@ -113,15 +120,21 @@ func TestValidatePatch(t *testing.T) {
 		},
 	}
 
+	// App Validator
+	appValidator := helper.NewValidator(&helper.PasswordCommonSet{})
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			current := model.Student{ID: 1, NIM: "123456789", Name: "John Doe", Grade: 3.50, IsActive: true}
-			got, errs := ValidatePatchStudent(current, test.req)
-
-			if got != test.want {
-				t.Errorf("student mismatch: got %+v, want %+v", got, test.want)
-			}
+			errs := helper.ValidateStruct(test.req, *appValidator)
 			assertErrorKeys(t, errs, test.wantErrors)
+
+			if len(errs) == 0 {
+				got := ApplyPatchStudent(current, test.req)
+				if got != test.want {
+					t.Errorf("student mismatch: got %+v, want %+v", got, test.want)
+				}
+			}
 		})
 	}
 }

@@ -168,6 +168,27 @@ Content-Type: application/json
 
 Login memiliki rate limit maksimum 5 request per IP dalam 1 menit. Request tanpa atau dengan format Bearer token yang tidak valid akan menerima status `401 Unauthorized`.
 
+## RBAC Permission Matrix
+
+Role dan permission di-load dari tabel `roles`, `permissions`, dan `role_permissions` pada migration `004_rbac.sql` dan `005_student_rbac.sql`. Akses yang bersifat pribadi (`owner` access) juga diperiksa di layer service melalui `CanAccessUser()` dan `CanAccessStudent()`.
+
+| Role | Permissions |
+|---|---|
+| `admin` | `user:list`, `user:read:any`, `user:update:any`, `user:delete`, `role:assign`, `student:list`, `student:read:any`, `student:create`, `student:update:any`, `student:delete` |
+| `staff` | `user:list`, `user:read:any`, `student:list`, `student:read:any`, `student:create` |
+| `user` | default role; tidak diberikan permission RBAC eksplisit, tetapi dapat mengakses data milik sendiri berdasarkan pengecekan `current.UserID == targetID` |
+
+### Aturan akses yang diterapkan
+
+- `GET /users/` memerlukan `user:list`
+- `POST /users/` memerlukan `user:update:any`
+- `DELETE /users/:id` memerlukan `user:delete`
+- `PATCH /users/:id/role` memerlukan `role:assign`
+- `GET /students/` memerlukan `student:list`
+- `POST /students/` memerlukan `student:create`
+- `DELETE /students/:id` memerlukan `student:delete`
+- Semua akses ke resource milik sendiri diizinkan tanpa perlu permission tambahan (`current.UserID == targetID` atau `owner_id`)
+
 ## API Endpoints
 
 Base URL: `http://localhost:3000/api/v1`
@@ -275,15 +296,17 @@ Mengembalikan data user yang terhubung dengan subject pada access token. Passwor
 
 ### Users
 
-Semua endpoint users memerlukan Bearer access token.
+Semua endpoint users memerlukan Bearer access token. Beberapa endpoint juga menambahkan middleware permission tambahan sesuai role.
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
-| `GET` | `/users/` | List user dengan pagination, search, filter `is_active`, sort, dan order |
-| `GET` | `/users/:id` | Ambil user berdasarkan ID |
-| `POST` | `/users/` | Buat user baru |
-| `PATCH` | `/users/:id` | Update sebagian data user |
-| `DELETE` | `/users/:id` | Hapus user |
+| `GET` | `/users/` | List user dengan pagination, search, filter `is_active`, sort, dan order; membutuhkan permission `user:list` |
+| `GET` | `/users/:id` | Ambil user berdasarkan ID; hanya authenticated user dapat mengakses sendiri atau role dengan permission yang sesuai |
+| `POST` | `/users/` | Buat user baru; membutuhkan permission `user:update:any` |
+| `PUT` | `/users/:id` | Replace data user; tidak ada middleware permission eksplisit pada route |
+| `PATCH` | `/users/:id` | Update sebagian data user; tidak ada middleware permission eksplisit pada route |
+| `DELETE` | `/users/:id` | Hapus user; membutuhkan permission `user:delete` |
+| `PATCH` | `/users/:id/role` | Ubah role user; membutuhkan permission `role:assign` |
 
 Contoh membuat user:
 
@@ -299,20 +322,30 @@ Content-Type: application/json
 }
 ```
 
-Route `PUT /users/:id` belum didaftarkan pada `route/route.go`, walaupun tipe `ReplaceUserRequest` dan method `Replace` tersedia di service.
+Contoh assign role:
+
+```http
+PATCH /users/12/role
+Authorization: Bearer <access-token>
+Content-Type: application/json
+
+{
+  "role": "admin"
+}
+```
 
 ### Students
 
-Semua endpoint students memerlukan Bearer access token.
+Semua endpoint students memerlukan Bearer access token. Beberapa endpoint juga menambahkan middleware permission tambahan sesuai role.
 
 | Method | Endpoint | Keterangan |
 |---|---|---|
-| `GET` | `/students/` | List mahasiswa dengan pagination dan filter |
-| `GET` | `/students/:id` | Ambil mahasiswa berdasarkan ID |
-| `POST` | `/students/` | Tambah mahasiswa |
-| `PUT` | `/students/:id` | Ganti data nama, grade, dan status aktif |
-| `PATCH` | `/students/:id` | Update sebagian data mahasiswa |
-| `DELETE` | `/students/:id` | Hapus mahasiswa |
+| `GET` | `/students/` | List mahasiswa dengan pagination dan filter; membutuhkan permission `student:list` |
+| `GET` | `/students/:id` | Ambil mahasiswa berdasarkan ID; hanya authenticated user dapat mengakses sendiri atau role dengan permission yang sesuai |
+| `POST` | `/students/` | Tambah mahasiswa; membutuhkan permission `student:create` |
+| `PUT` | `/students/:id` | Ganti data nama, grade, dan status aktif; tidak ada middleware permission eksplisit pada route |
+| `PATCH` | `/students/:id` | Update sebagian data mahasiswa; tidak ada middleware permission eksplisit pada route |
+| `DELETE` | `/students/:id` | Hapus mahasiswa; membutuhkan permission `student:delete` |
 
 Contoh membuat mahasiswa:
 

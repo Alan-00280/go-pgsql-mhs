@@ -11,11 +11,13 @@ import (
 )
 
 type StudentHandler struct {
-	repo repository.StudentRepository
+	repo         repository.StudentRepository
+	perms        *helper.PermissionSet
+	appValidator *helper.AppValidator
 }
 
-func NewStudentHandler(repo repository.StudentRepository) *StudentHandler {
-	return &StudentHandler{repo: repo}
+func NewStudentHandler(repo repository.StudentRepository, perms *helper.PermissionSet, appValidator *helper.AppValidator) *StudentHandler {
+	return &StudentHandler{repo: repo, perms: perms, appValidator: appValidator}
 }
 
 // GET - Get All Students
@@ -23,11 +25,20 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
+
 	q := helper.ParseListQuery(c)
 
 	students, total, err := h.repo.FindAll(ctx, q)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "fail to get student list")
+		return helper.Internal(err)
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteStudentsCSV(c, students)
 	}
 
 	return helper.OkList(c, "student list successfully retreived", students, &model.Meta{
@@ -38,6 +49,44 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 	})
 }
 
+// GET - Get All Students (using cursor)
+func (h *StudentHandler) ListCursor(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
+
+	q := helper.ParseCursorQuery(c)
+
+	rows, err := h.repo.FindAfterCursor(ctx, q)
+
+	if err != nil {
+		return helper.Internal(err)
+	}
+
+	// Baris tambahan hasil limit+1 dipotong di sini. Ia hanya penanda bahwa
+	// masih ada halaman berikutnya, bukan bagian dari halaman ini.
+	hasMore := len(rows) > q.Limit
+	if hasMore {
+		rows = rows[:q.Limit]
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteStudentsCSV(c, rows)
+	}
+
+	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		meta.NextCursor = helper.EncodeCursor(last.CreatedAt, last.ID)
+	}
+
+	return helper.SuccessCursor(c, "daftar students berhasil diambil", rows, meta)
+}
+
 // GET - Get a Student by ID
 func (h *StudentHandler) Get(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
@@ -45,15 +94,24 @@ func (h *StudentHandler) Get(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id invalid")
+		return helper.BadRequest("id invalid")
 	}
 
-	user, err := h.repo.FindById(ctx, id)
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "can't get student data")
+		return translateErr(err, "student")
 	}
 
-	return helper.Ok(c, "student found", user)
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:read:any") {
+		return helper.Forbidden("anda tidak dapat hak untuk mengakses student ini")
+	}
+
+	return helper.Ok(c, "student found", student)
 }
 
 // POST - Create a Student
@@ -63,14 +121,19 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 
 	var req model.CreateStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	req.Name = strings.TrimSpace(req.Name)
 
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
 	// VALIDATION
-	if errs := ValidateCreateStudent(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
+		return helper.Validation(errs)
 	}
 
 	// Keunikan username TIDAK diperiksa dengan SELECT lebih dulu.
@@ -81,12 +144,13 @@ func (h *StudentHandler) Create(c *fiber.Ctx) error {
 		Name:     req.Name,
 		Grade:    req.Grade,
 		IsActive: true,
+		OwnerID:  current.UserID,
 	})
 	if err != nil {
-		return translateErr(c, err, "can't store student")
+		return translateErr(err, "student")
 	}
 
-	return helper.Created(c, "user berhasil dibuat", baru,
+	return helper.Created(c, "student berhasil dibuat", baru,
 		"/api/v1/students/"+strconv.Itoa(baru.ID))
 }
 
@@ -97,25 +161,39 @@ func (h *StudentHandler) Replace(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id must be a positive number")
+		return helper.BadRequest("id must be a positive number")
 	}
 
 	var req model.ReplaceStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "JSON Body invalid")
+		return helper.BadRequest("JSON Body invalid")
+	}
+
+	student, err := h.repo.FindById(ctx, id)
+	if err != nil {
+		return translateErr(err, "student")
+	}
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
+		return helper.Forbidden("anda tidak dapat hak untuk mengganti data student ini")
 	}
 
 	// VALIDATE
-	if errs := ValidateReplaceStudent(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+	if errs := helper.ValidateStruct(req, *h.appValidator); len(errs) > 0 {
+		return helper.Validation(errs)
 	}
 
 	// UPDATE
 	hasil, err := h.repo.Update(ctx, model.Student{
-		ID: id, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
+		ID: id, NIM: student.NIM, Name: req.Name, Grade: req.Grade, IsActive: req.IsActive,
 	})
 	if err != nil {
-		return translateErr(c, err, "can't update student")
+		return translateErr(err, "student")
 	}
 
 	return helper.Ok(c, "student successfully changed entirely", hasil)
@@ -128,34 +206,44 @@ func (h *StudentHandler) Patch(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	var req model.PatchStudentReq
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	if IsEmptyPatchStudent(req) {
-		return helper.Fail(c, fiber.StatusBadRequest, "no data changed")
+		return helper.BadRequest("no data changed")
 	}
 
 	student, err := h.repo.FindById(ctx, id)
 	if err != nil {
-		return translateErr(c, err, "gagal mengambil data user")
+		return translateErr(err, "student")
 	}
 
-	newStudent, errs := ValidatePatchStudent(student, req)
-	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
 	}
+
+	if !CanAccessStudent(current, student.OwnerID, student.ID, h.perms, "student:update:any") {
+		return helper.Forbidden("anda tidak dapat hak untuk memperbarui data student ini")
+	}
+
+	errs := helper.ValidateStruct(req, *h.appValidator)
+	if len(errs) > 0 {
+		return helper.Validation(errs)
+	}
+	newStudent := ApplyPatchStudent(student, req)
 
 	result, err := h.repo.Update(ctx, newStudent)
 	if err != nil {
-		return translateErr(c, err, "gagal memperbarui user")
+		return translateErr(err, "student")
 	}
 
-	return helper.Ok(c, "user berhasil diperbarui sebagian", result)
+	return helper.Ok(c, "student berhasil diperbarui sebagian", result)
 }
 
 // DELETE - Drop a Student
@@ -165,11 +253,11 @@ func (h *StudentHandler) Delete(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	if err := h.repo.Delete(ctx, id); err != nil {
-		return translateErr(c, err, "gagal menghapus student")
+		return translateErr(err, "student")
 	}
 
 	return helper.NoContent(c)

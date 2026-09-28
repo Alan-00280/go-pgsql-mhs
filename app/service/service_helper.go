@@ -5,16 +5,24 @@ import (
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/repository"
 	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
-	"github.com/gofiber/fiber/v2"
 )
 
-func translateErr(c *fiber.Ctx, err error, generalMessage string) error {
+func translateErr(err error, entity string) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return helper.Fail(c, fiber.StatusNotFound, "student can't be found")
+		return helper.NotFound(entity + " can't be found")
 	case errors.Is(err, repository.ErrDuplicate):
-		return helper.Fail(c, fiber.StatusConflict, "nim already used")
+		return helper.Conflict("data already used")
 	default:
-		return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
+		return helper.Internal(err)
 	}
+}
+
+// make the total page even without decimal number
+func CountTotalPages(total, limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+
+	return (total + limit - 1) / limit
 }

@@ -17,10 +17,12 @@ type Dependencies struct {
 	StudentHandler *service.StudentHandler
 	AuthHandler    *service.AuthHandler
 	UserHandler    *service.UserHandler
+	Permission     *helper.PermissionSet
 }
 
 func Register(app *fiber.App, deps Dependencies) {
 	api := app.Group("/api/v1")
+	permissions := deps.Permission
 
 	// PUBLIK
 	api.Get("/health", healthCheck(deps.Pool))
@@ -35,19 +37,24 @@ func Register(app *fiber.App, deps Dependencies) {
 
 	// PROTECTED
 	user := api.Group("/users", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
-	user.Get("/", deps.UserHandler.ListAll)
+	user.Get("/", middleware.RequirePermission(permissions, "user:list"), deps.UserHandler.ListAll)
+	user.Post("/", middleware.RequirePermission(permissions, "user:update:any"), deps.UserHandler.Create)
+	user.Delete("/:id", middleware.RequirePermission(permissions, "user:delete"), deps.UserHandler.Delete)
+	user.Patch("/:id/role", middleware.RequirePermission(permissions, "role:assign"), deps.UserHandler.AssignRole)
+
+	user.Put("/:id", deps.UserHandler.Replace)
 	user.Get("/:id", deps.UserHandler.Get)
-	user.Post("/", deps.UserHandler.Create)
 	user.Patch("/:id", deps.UserHandler.Patch)
-	user.Delete("/:id", deps.UserHandler.Delete)
 
 	student := api.Group("/students", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
-	student.Get("/", deps.StudentHandler.List)
-	student.Get("/:id", deps.StudentHandler.Get)
-	student.Post("/", deps.StudentHandler.Create)
+	student.Get("/", middleware.RequirePermission(permissions, "student:list"), deps.StudentHandler.List)
+	student.Get("/c", middleware.RequirePermission(permissions, "student:list"), deps.StudentHandler.ListCursor)
+	student.Post("/", middleware.RequirePermission(permissions, "student:create"), deps.StudentHandler.Create)
+	student.Delete("/:id", middleware.RequirePermission(permissions, "student:delete"), deps.StudentHandler.Delete)
+
 	student.Put("/:id", deps.StudentHandler.Replace)
 	student.Patch("/:id", deps.StudentHandler.Patch)
-	student.Delete("/:id", deps.StudentHandler.Delete)
+	student.Get("/:id", deps.StudentHandler.Get)
 }
 
 func healthCheck(pool *pgxpool.Pool) fiber.Handler {
@@ -57,7 +64,7 @@ func healthCheck(pool *pgxpool.Pool) fiber.Handler {
 
 		if err := pool.Ping(ctx); err != nil {
 			// ERR 503 - Service Unavailable
-			return helper.Fail(c, fiber.StatusServiceUnavailable, "database can't be reached")
+			return helper.ServiceUnavailable("database can't be reached")
 		}
 
 		return helper.Ok(c, "server and database is OK!", nil)
