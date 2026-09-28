@@ -48,6 +48,7 @@ func Register(app *fiber.App, deps Dependencies) {
 
 	student := api.Group("/students", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
 	student.Get("/", middleware.RequirePermission(permissions, "student:list"), deps.StudentHandler.List)
+	student.Get("/c", middleware.RequirePermission(permissions, "student:list"), deps.StudentHandler.ListCursor)
 	student.Post("/", middleware.RequirePermission(permissions, "student:create"), deps.StudentHandler.Create)
 	student.Delete("/:id", middleware.RequirePermission(permissions, "student:delete"), deps.StudentHandler.Delete)
 

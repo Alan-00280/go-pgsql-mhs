@@ -6,13 +6,13 @@ const MAX_GRADE = 4.00
 const NIM_LENGTH = 9
 
 type Student struct {
-	ID        int        `json:"id"`
-	NIM       string     `json:"nim"`
-	Name      string     `json:"name"`
-	Grade     float64    `json:"grade"`
-	IsActive  bool       `json:"is_active"`
-	CreatedAt *time.Time `json:"created_at,omitempty"`
-	OwnerID   int        `json:"owner_id"`
+	ID        int       `json:"id"`
+	NIM       string    `json:"nim"`
+	Name      string    `json:"name"`
+	Grade     float64   `json:"grade"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	OwnerID   int       `json:"owner_id"`
 }
 
 // POST - For Creating Student

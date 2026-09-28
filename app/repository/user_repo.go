@@ -217,6 +217,12 @@ func (r *UserPGRepository) FindAfterCursor(
 		args = append(args, q.After.CreatedAt, q.After.ID)
 		where += fmt.Sprintf(" AND (created_at, id) < ($%d, $%d)", len(args)-1, len(args))
 	}
+	if q.UserFilter != nil {
+		if q.UserFilter.Role != "" {
+			where += fmt.Sprintf(" AND role = $%d", len(args)+1)
+			args = append(args, q.UserFilter.Role)
+		}
+	}
 
 	args = append(args, q.Limit+1)
 	query := fmt.Sprintf("SELECT %s FROM users%s ORDER BY created_at DESC, id DESC LIMIT $%d", userColumns, where, len(args))

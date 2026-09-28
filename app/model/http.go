@@ -53,4 +53,6 @@ type CursorQuery struct {
 	Limit    int
 	IsActive *bool
 	After    *Cursor
+	*StudentFilter
+	*UserFilter
 }

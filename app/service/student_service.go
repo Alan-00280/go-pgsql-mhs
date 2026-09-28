@@ -40,6 +40,35 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 	})
 }
 
+// GET - Get All Students (using cursor)
+func (h *StudentHandler) ListCursor(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	q := helper.ParseCursorQuery(c)
+
+	rows, err := h.repo.FindAfterCursor(ctx, q)
+
+	if err != nil {
+		return helper.Internal(err)
+	}
+
+	// Baris tambahan hasil limit+1 dipotong di sini. Ia hanya penanda bahwa
+	// masih ada halaman berikutnya, bukan bagian dari halaman ini.
+	hasMore := len(rows) > q.Limit
+	if hasMore {
+		rows = rows[:q.Limit]
+	}
+
+	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}
+	if hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		meta.NextCursor = helper.EncodeCursor(last.CreatedAt, last.ID)
+	}
+
+	return helper.SuccessCursor(c, "daftar students berhasil diambil", rows, meta)
+}
+
 // GET - Get a Student by ID
 func (h *StudentHandler) Get(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)

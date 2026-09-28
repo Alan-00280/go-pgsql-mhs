@@ -31,6 +31,7 @@ type StudentRepository interface {
 	Create(ctx context.Context, u model.Student) (model.Student, error)
 	Update(ctx context.Context, u model.Student) (model.Student, error)
 	Delete(ctx context.Context, id int) error
+	FindAfterCursor(ctx context.Context, q model.CursorQuery) ([]model.Student, error)
 }
 
 var sortColumnStudent = map[string]string{
@@ -51,6 +52,41 @@ func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
 
 // Args builder (WHERE ...)
 func buildFilterStudent(q model.ListQuery) (string, []any) {
+	where := " WHERE 1=1"
+	args := []any{}
+
+	if q.Search != "" {
+		where += fmt.Sprintf(" AND (name ILIKE $%d OR nim ILIKE $%d)",
+			len(args)+1, len(args)+1)
+		args = append(args, "%"+q.Search+"%")
+	}
+
+	if q.IsActive != nil {
+		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
+		args = append(args, *q.IsActive)
+	}
+
+	if q.StudentFilter != nil {
+		if q.StudentFilter.StartGrade >= 0.00 {
+			where += fmt.Sprintf(" AND grade >= $%d", len(args)+1)
+			args = append(args, q.StudentFilter.StartGrade)
+		}
+
+		if q.StudentFilter.EndGrade <= 4.00 {
+			where += fmt.Sprintf(" AND grade <= $%d", len(args)+1)
+			args = append(args, q.StudentFilter.EndGrade)
+		}
+
+		if q.StudentFilter.OwnerID != nil && *q.StudentFilter.OwnerID > 0 {
+			where += fmt.Sprintf(" AND owner_id = $%d", len(args)+1)
+			args = append(args, q.StudentFilter.OwnerID)
+		}
+	}
+
+	return where, args
+}
+
+func buildFilterStudentCursor(q model.CursorQuery) (string, []any) {
 	where := " WHERE 1=1"
 	args := []any{}
 
@@ -201,4 +237,50 @@ func (r *StudentPGRepository) Delete(
 	}
 
 	return nil
+}
+
+func (r *StudentPGRepository) FindAfterCursor(
+	ctx context.Context,
+	q model.CursorQuery,
+) ([]model.Student, error) {
+	filters, args := buildFilterStudentCursor(q)
+
+	if q.After != nil {
+		args = append(args, q.After.CreatedAt, q.After.ID)
+		filters += fmt.Sprintf(" AND (created_at, id) < ($%d, $%d)", len(args)-1, len(args))
+	}
+
+	args = append(args, q.Limit+1)
+
+	query := fmt.Sprintf("SELECT id, nim, name, grade, is_active, created_at, owner_id FROM students%s ORDER BY created_at DESC, id DESC LIMIT $%d", filters, len(args))
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+	}
+	defer rows.Close()
+
+	result := []model.Student{}
+	for rows.Next() {
+		student, err := scanStudent(rows)
+		if err != nil {
+			return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+		}
+		result = append(result, student)
+	}
+	if err = rows.Err(); err != nil {
+		return []model.Student{}, fmt.Errorf("can't get students: %w", err)
+	}
+
+	return result, nil
+}
+
+func scanStudent(rows pgx.Rows) (model.Student, error) {
+	var s model.Student
+
+	if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
+		return model.Student{}, err
+	}
+
+	return s, nil
 }

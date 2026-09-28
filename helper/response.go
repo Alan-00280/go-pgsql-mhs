@@ -51,7 +51,7 @@ func NoContent(c *fiber.Ctx) error {
 }
 
 // SuccessCursor(c, "daftar user berhasil diambil", rows, meta)
-func SuccessCursor(c *fiber.Ctx, message string, rows []model.User, meta *model.CursorMeta) error {
+func SuccessCursor(c *fiber.Ctx, message string, rows any, meta *model.CursorMeta) error {
 	return c.Status(fiber.StatusOK).JSON(model.WebResponseCursor{
 		Success: true,
 		Message: message,
