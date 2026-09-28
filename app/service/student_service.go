@@ -25,11 +25,20 @@ func (h *StudentHandler) List(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
+
 	q := helper.ParseListQuery(c)
 
 	students, total, err := h.repo.FindAll(ctx, q)
 	if err != nil {
 		return helper.Internal(err)
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteStudentsCSV(c, students)
 	}
 
 	return helper.OkList(c, "student list successfully retreived", students, &model.Meta{
@@ -45,6 +54,11 @@ func (h *StudentHandler) ListCursor(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
+
 	q := helper.ParseCursorQuery(c)
 
 	rows, err := h.repo.FindAfterCursor(ctx, q)
@@ -58,6 +72,10 @@ func (h *StudentHandler) ListCursor(c *fiber.Ctx) error {
 	hasMore := len(rows) > q.Limit
 	if hasMore {
 		rows = rows[:q.Limit]
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteStudentsCSV(c, rows)
 	}
 
 	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}

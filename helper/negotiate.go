@@ -65,6 +65,8 @@ func WriteUsersCSV(c *fiber.Ctx, users []model.User) error {
 		}
 	}
 
+	writer.Flush()
+
 	if err := writer.Error(); err != nil {
 		return Internal(err)
 	}
@@ -72,14 +74,55 @@ func WriteUsersCSV(c *fiber.Ctx, users []model.User) error {
 	return c.SendString(buffer.String())
 }
 
-func WriteStudentsCSV(c *fiber.Ctx, students []model.Student) error {
-	c.Set(fiber.HeaderContentType, FormatCSV+"; charset=utf-8")
-	c.Set(fiber.HeaderContentDisposition, `attachment; filename=students.csv`)
+// func WriteStudentsCSV(c *fiber.Ctx, students []model.Student) error {
+// 	c.Set(fiber.HeaderContentType, FormatCSV+"; charset=utf-8")
+// 	c.Set(fiber.HeaderContentDisposition, `attachment; filename=students.csv`)
 
+// 	var buffer strings.Builder
+// 	writer := csv.NewWriter(&buffer)
+
+// 	header := []string{"id", "owner_id", "nim", "name", "grade", "is_active", "created_at"}
+// 	if err := writer.Write(header); err != nil {
+// 		return Internal(err)
+// 	}
+
+// 	for _, s := range students {
+// 		row := []string{
+// 			strconv.Itoa(s.ID),
+// 			strconv.Itoa(s.OwnerID),
+// 			s.NIM,
+// 			s.Name,
+// 			strconv.FormatFloat(s.Grade, 'f', 2, 64),
+// 			strconv.FormatBool(s.IsActive),
+// 			s.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+// 		}
+
+// 		if err := writer.Write(row); err != nil {
+// 			return Internal(err)
+// 		}
+// 	}
+
+// 	if err := writer.Error(); err != nil {
+// 		return Internal(err)
+// 	}
+
+// 	return c.SendString(buffer.String())
+// }
+
+func WriteStudentsCSV(c *fiber.Ctx, students []model.Student) error {
 	var buffer strings.Builder
 	writer := csv.NewWriter(&buffer)
 
-	header := []string{"id", "owner_id", "nim", "name", "grade", "is_active", "created_at"}
+	header := []string{
+		"id",
+		"owner_id",
+		"nim",
+		"name",
+		"grade",
+		"is_active",
+		"created_at",
+	}
+
 	if err := writer.Write(header); err != nil {
 		return Internal(err)
 	}
@@ -100,9 +143,14 @@ func WriteStudentsCSV(c *fiber.Ctx, students []model.Student) error {
 		}
 	}
 
+	writer.Flush()
+
 	if err := writer.Error(); err != nil {
 		return Internal(err)
 	}
+
+	c.Set(fiber.HeaderContentType, "text/csv; charset=utf-8")
+	c.Set(fiber.HeaderContentDisposition, `attachment; filename="students.csv"`)
 
 	return c.SendString(buffer.String())
 }

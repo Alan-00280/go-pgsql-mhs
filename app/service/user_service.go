@@ -24,6 +24,11 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
+	format, err := helper.Negotiate(c, helper.FormatJSON, helper.FormatCSV)
+	if err != nil {
+		return err
+	}
+
 	// q := helper.ParseListQuery(c)
 	q := helper.ParseCursorQuery(c)
 
@@ -40,7 +45,6 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 	// })
 
 	rows, err := h.repo.FindAfterCursor(ctx, q)
-
 	if err != nil {
 		return helper.Internal(err)
 	}
@@ -50,6 +54,10 @@ func (h *UserHandler) ListAll(c *fiber.Ctx) error {
 	hasMore := len(rows) > q.Limit
 	if hasMore {
 		rows = rows[:q.Limit]
+	}
+
+	if format == helper.FormatCSV {
+		return helper.WriteUsersCSV(c, rows)
 	}
 
 	meta := &model.CursorMeta{Limit: q.Limit, HasMore: hasMore}
