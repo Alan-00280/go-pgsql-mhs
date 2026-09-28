@@ -17,7 +17,7 @@ func translateErr(err error, entity string) error {
 		return helper.Conflict("data already used")
 	default:
 		// return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
-		return nil
+		return helper.Internal(err)
 	}
 }
 
