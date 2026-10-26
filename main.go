@@ -76,6 +76,9 @@ func main() {
 	// App Validator
 	appValidator := helper.NewValidator(passwordCommonSet)
 
+	// TX Manager
+	txManager := repository.NewTxManager(pool)
+
 	// Repo -> Services
 	userRepo := repository.NewUserRepository(pool)
 	userService := service.NewUserHandler(userRepo, permissionSet, appValidator)
@@ -94,7 +97,7 @@ func main() {
 	studentService := service.NewStudentHandler(studentRepo, permissionSet, appValidator)
 
 	courseRepo := repository.NewCourseRepository(pool)
-	courseService := service.NewCourseService(courseRepo)
+	courseService := service.NewCourseService(courseRepo, txManager)
 
 	deps := route.Dependencies{
 		Pool:           pool,
