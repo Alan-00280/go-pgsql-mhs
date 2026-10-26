@@ -65,6 +65,9 @@ func Register(app *fiber.App, deps Dependencies) {
 	courses.Get("/", deps.CourseHandler.List)
 	courses.Get("/mine", deps.CourseHandler.Mine)
 	courses.Get("/:id", deps.CourseHandler.Get)
+
+	courses.Post("/:id/enroll", deps.CourseHandler.Enroll)
+	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
 }
 
 func healthCheck(pool *pgxpool.Pool) fiber.Handler {

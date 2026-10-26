@@ -145,3 +145,12 @@ func Internal(cause error) *AppError {
 		cause:   cause,
 	}
 }
+
+// Custom Error
+func NewError(status int, code, message string) *AppError {
+	return &AppError{
+		Status:  status,
+		Code:    code,
+		Message: message,
+	}
+}
