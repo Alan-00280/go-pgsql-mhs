@@ -68,6 +68,10 @@ func Register(app *fiber.App, deps Dependencies) {
 
 	courses.Post("/:id/enroll", deps.CourseHandler.Enroll)
 	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
+
+	enrollemnts := api.Group("/enrollments", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+
+	enrollemnts.Post("/swap", deps.CourseHandler.Swap)
 }
 
 func healthCheck(pool *pgxpool.Pool) fiber.Handler {
