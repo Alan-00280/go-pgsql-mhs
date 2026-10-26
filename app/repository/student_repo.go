@@ -11,12 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Setinel Errs
-var (
-	ErrNotFound  = errors.New("data not found")
-	ErrDuplicate = errors.New("data already exists")
-)
-
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

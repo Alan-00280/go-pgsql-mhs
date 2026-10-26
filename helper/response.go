@@ -22,6 +22,14 @@ func OkList(c *fiber.Ctx, message string, data any, meta *model.Meta) error {
 	})
 }
 
+func Success(c *fiber.Ctx, message string, data any) error {
+	return c.Status(fiber.StatusOK).JSON(model.WebResponse{
+		Success: true,
+		Message: message,
+		Data:    data,
+	})
+}
+
 func Created(c *fiber.Ctx, message string, data any, location string) error {
 	c.Set("Location", location)
 	return c.Status(fiber.StatusCreated).JSON(model.WebResponse{
