@@ -99,14 +99,18 @@ func main() {
 	courseRepo := repository.NewCourseRepository(pool)
 	courseService := service.NewCourseService(courseRepo, txManager, appValidator)
 
+	supervisorRepo := repository.NewSupervisorRepository(pool)
+	superviserService := service.NewSupervisorServices(supervisorRepo, txManager, appValidator)
+
 	deps := route.Dependencies{
-		Pool:           pool,
-		JWT:            jwtManager,
-		UserHandler:    userService,
-		AuthHandler:    authService,
-		StudentHandler: studentService,
-		CourseHandler:  courseService,
-		Permission:     permissionSet,
+		Pool:              pool,
+		JWT:               jwtManager,
+		UserHandler:       userService,
+		AuthHandler:       authService,
+		StudentHandler:    studentService,
+		CourseHandler:     courseService,
+		SupervisorHandler: superviserService,
+		Permission:        permissionSet,
 	}
 
 	// APP

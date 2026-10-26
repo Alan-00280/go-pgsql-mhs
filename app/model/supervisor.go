@@ -10,3 +10,17 @@ type Supervisor struct {
 	Version         int       `json:"version"`
 	CreatedAt       time.Time `json:"created_at"`
 }
+
+type StudentIDReq struct {
+	StudentID int `json:"student_id"`
+}
+
+type AssignSupervisorReq struct {
+	StudentID int `json:"student_id"`
+}
+
+type SwitchSupervisorReq struct {
+	StudentID int `json:"student_id"`
+	FromSupervisorID int `json:"from_supervisor_id"`
+	ToSupervisorID int `json:"to_supervisor_id"`
+}
