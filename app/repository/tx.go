@@ -69,15 +69,12 @@ func (m *TxManager) runOnce(
 	if err != nil {
 		return fmt.Errorf("memulai transaction: %w", err)
 	}
+	defer tx.Rollback(ctx)
 
 	// Rollback SELALU dijadwalkan. Setelah Commit berhasil, Rollback tidak
 	// melakukan apa-apa (pgx mengembalikan ErrTxClosed yang kita abaikan).
 	// Tanpa baris ini, setiap kegagalan meninggalkan transaction terbuka
 	// yang terus memegang satu koneksi dari pool — selamanya.
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-
 	if err := fn(tx); err != nil {
 		return err
 	}

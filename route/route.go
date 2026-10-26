@@ -68,6 +68,7 @@ func Register(app *fiber.App, deps Dependencies) {
 
 	courses.Post("/:id/enroll", deps.CourseHandler.Enroll)
 	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
+	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
 
 	enrollemnts := api.Group("/enrollments", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
 

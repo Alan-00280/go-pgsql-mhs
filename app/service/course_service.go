@@ -101,19 +101,6 @@ func (s *CourseService) Get(c *fiber.Ctx) error {
 	)
 }
 
-func translateCourseError(err error) error {
-	switch {
-	case errors.Is(err, repository.ErrNotFound):
-		return helper.NotFound("kelas tidak ditemukan")
-	default:
-		return helper.Internal(err)
-	case errors.Is(err, repository.ErrNotEnrolled):
-		return helper.NewError(fiber.StatusConflict, "NOT_ENROLLED", "Anda tidak terdaftar di kelas tersebut")
-	case errors.Is(err, errCreditLimit):
-		return helper.NewError(fiber.StatusConflict, "CREDIT_LIMIT_EXCEEDED", "batas "+strconv.Itoa(MaxCreditsPerSemester)+" SKS terlampaui")
-	}
-}
-
 // ---------- POST /courses/:id/enroll ----------
 
 func (s *CourseService) Enroll(c *fiber.Ctx) error {
@@ -342,4 +329,95 @@ func (s *CourseService) Swap(c *fiber.Ctx) error {
 		"berhasil pindah kelas",
 		joined,
 	)
+}
+
+// ---------- PATCH /courses/:id ----------
+// Dijaga middleware dengan permission course:manage.
+func (s *CourseService) UpdateQuota(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.BadRequest("id harus berupa angka positif")
+	}
+
+	var req model.UpdateQuotaRequest
+	if err := c.BodyParser(&req); err != nil {
+		return helper.BadRequest("body harus berupa JSON yang valid")
+	}
+
+	if errs := helper.ValidateStruct(req, *s.appValidator); errs != nil {
+		return helper.Validation(errs)
+	}
+
+	// Satu pernyataan UPDATE saja, sehingga tidak perlu WithTx:
+	// setiap pernyataan tunggal di PostgreSQL sudah atomik dengan sendirinya.
+	updated, err := s.courses.UpdateQuota(
+		ctx,
+		id,
+		req.Quota,
+		req.Version,
+	)
+	if err != nil {
+		return translateCourseError(err)
+	}
+
+	return helper.Success(
+		c,
+		"kuota berhasil diubah",
+		updated,
+	)
+}
+
+func translateCourseError(err error) error {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		return helper.NotFound("kelas tidak ditemukan")
+
+	case errors.Is(err, repository.ErrCourseFull):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"COURSE_FULL",
+			"kuota kelas sudah penuh",
+		)
+
+	case errors.Is(err, repository.ErrDuplicate):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"ALREADY_ENROLLED",
+			"Anda sudah terdaftar di kelas ini",
+		)
+
+	case errors.Is(err, repository.ErrNotEnrolled):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"NOT_ENROLLED",
+			"Anda tidak terdaftar di kelas tersebut",
+		)
+
+	case errors.Is(err, errCreditLimit):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"CREDIT_LIMIT_EXCEEDED",
+			"batas "+strconv.Itoa(MaxCreditsPerSemester)+" SKS terlampaui",
+		)
+
+	case errors.Is(err, repository.ErrVersionConflict):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"VERSION_CONFLICT",
+			"data kelas sudah diubah pihak lain, muat ulang lalu coba lagi",
+		)
+
+	case errors.Is(err, repository.ErrQuotaBelowFilled):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"QUOTA_BELOW_ENROLLED",
+			"kuota tidak boleh lebih kecil dari jumlah peserta saat ini",
+		)
+
+	default:
+		return helper.Internal(err)
+	}
 }
