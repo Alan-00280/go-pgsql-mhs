@@ -34,13 +34,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create DB Pool
+	// Create DB Pool (POSTGRES)
 	pool, err := database.NewPool(context.Background())
 	if err != nil {
 		fmt.Printf("Err: %v", err)
 		return
 	}
 	defer pool.Close()
+
+	// Create MongoDB Client
+	mongoClient, err := database.NewMongoClient(context.Background())
+	if err != nil {
+		logger.Error("Can't Connect to MongoDB", slog.String("[ERROR]", err.Error()))
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = mongoClient.Disconnect(ctx)
+	}()
+	_ = mongoClient.Database(config.GetEnv("MONGO_DATABASE", "praktikum_be"))
 
 	// JWT Manager
 	jwtManager := helper.NewJWTManager(
@@ -104,6 +116,7 @@ func main() {
 
 	deps := route.Dependencies{
 		Pool:              pool,
+		Mongoclient:       mongoClient,
 		JWT:               jwtManager,
 		UserHandler:       userService,
 		AuthHandler:       authService,
