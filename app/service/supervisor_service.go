@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
@@ -133,9 +134,12 @@ func (s *SupervisorServices) Assign(c *fiber.Ctx) error {
 		}
 
 		// 2. Periksa apakah student sudah memiliki supervisor
-		_, err := repo.FindByStudent(ctx, req.StudentID)
-		if err == nil {
-			return errCreditLimit
+		existing, err := repo.FindByStudent(ctx, req.StudentID)
+		if err != nil {
+			return err
+		}
+		if len(existing) > 0 {
+			return repository.ErrDuplicate
 		}
 
 		// 3. Ambil satu secara atomik.
@@ -168,7 +172,7 @@ func (s *SupervisorServices) Switch(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
 
-	current, ok := helper.CurentUser(c)
+	_, ok := helper.CurentUser(c)
 	if !ok {
 		return helper.Unauthorized("belum terautentikasi")
 	}
@@ -193,7 +197,7 @@ func (s *SupervisorServices) Switch(c *fiber.Ctx) error {
 	err := s.tx.WithTx(ctx, func(tx repository.DBTX) error {
 		repo := s.supervisors.WithTx(tx)
 
-		if err := repo.LockStudent(ctx, current.UserID); err != nil {
+		if err := repo.LockStudent(ctx, req.StudentID); err != nil {
 			return err
 		}
 
@@ -242,12 +246,12 @@ func (s *SupervisorServices) Switch(c *fiber.Ctx) error {
 		return repo.InsertSupervision(
 			ctx,
 			req.ToSupervisorID,
-			current.UserID,
+			req.StudentID,
 		)
 	})
 
 	if err != nil {
-		return translateCourseError(err)
+		return translateSupervisorError(err)
 	}
 
 	return helper.Success(
@@ -286,7 +290,7 @@ func (s *SupervisorServices) UpdateQuota(c *fiber.Ctx) error {
 		req.Version,
 	)
 	if err != nil {
-		return translateCourseError(err)
+		return translateSupervisorError(err)
 	}
 
 	return helper.Success(
@@ -298,6 +302,44 @@ func (s *SupervisorServices) UpdateQuota(c *fiber.Ctx) error {
 
 func translateSupervisorError(err error) error {
 	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		return helper.NotFound("supervisor tidak ditemukan")
+
+	case errors.Is(err, repository.ErrCourseFull):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"SUPERVISOR_FULL",
+			"kuota supervisor sudah penuh",
+		)
+
+	case errors.Is(err, repository.ErrDuplicate):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"ALREADY_ASSIGNED",
+			"mahasiswa sudah memiliki supervisor",
+		)
+
+	case errors.Is(err, repository.ErrNotEnrolled):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"NOT_ASSIGNED",
+			"mahasiswa tidak dibimbing supervisor tersebut",
+		)
+
+	case errors.Is(err, repository.ErrVersionConflict):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"VERSION_CONFLICT",
+			"data supervisor sudah diubah pihak lain, muat ulang lalu coba lagi",
+		)
+
+	case errors.Is(err, repository.ErrQuotaBelowFilled):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"QUOTA_BELOW_SUPERVISED",
+			"kuota tidak boleh lebih kecil dari jumlah mahasiswa bimbingan saat ini",
+		)
+
 	default:
 		return helper.Internal(err)
 	}

@@ -40,12 +40,16 @@ func newErrorHandler(logger *slog.Logger) fiber.ErrorHandler {
 		}
 
 		if appErr.Status >= fiber.StatusInternalServerError {
-			logger.Error("request_field",
+			errStr := appErr.Message
+			if appErr.Unwrap() != nil {
+				errStr = appErr.Unwrap().Error()
+			}
+			logger.Error("request_failed",
 				slog.String("request_id", requestID),
 				slog.String("path", c.Path()),
 				slog.String("code", appErr.Code),
 				slog.Int("status", appErr.Status),
-				slog.String("error", appErr.Unwrap().Error()),
+				slog.String("error", errStr),
 			)
 		} else {
 			logger.Warn("request_rejected",

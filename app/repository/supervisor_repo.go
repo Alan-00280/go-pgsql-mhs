@@ -40,7 +40,7 @@ func NewSupervisorRepository(db DBTX) SupervisorRepository {
 }
 
 func (r *supervisorPGRepo) WithTx(tx DBTX) SupervisorRepository {
-	return nil
+	return &supervisorPGRepo{db: tx}
 }
 
 func (r *supervisorPGRepo) FindAll(ctx context.Context) ([]model.Supervisor, error) {
@@ -75,12 +75,12 @@ func (r *supervisorPGRepo) FindByStudent(ctx context.Context, studentID int) ([]
 	return r.collectSupervisor(
 		r.db.Query(
 			ctx,
-			`SELECT c.id, c.name, c.quota,
-			       c.supervised_count, c.version, c.created_at
-			 FROM supervisor sr
-			 JOIN supervisions ss ON ss.supervisor_id = sr.id
+			`SELECT s.id, s.name, s.quota,
+			       s.supervised_count, s.version, s.created_at
+			 FROM supervisors s
+			 JOIN supervisions ss ON ss.supervisor_id = s.id
 			 WHERE ss.student_id = $1
-			 ORDER BY c.code`,
+			 ORDER BY s.id`,
 			studentID,
 		),
 	)
@@ -109,11 +109,11 @@ func (r *supervisorPGRepo) LockStudent(ctx context.Context, studentID int) error
 func (r *supervisorPGRepo) LockSupervisor(ctx context.Context, ids ...int) error {
 	rows, err := r.db.Query(
 		ctx,
-		"SELECT id FROM supervisor WHERE id = ANY($1) ORDER BY id FOR UPDATE",
+		"SELECT id FROM supervisors WHERE id = ANY($1) ORDER BY id FOR UPDATE",
 		ids,
 	)
 	if err != nil {
-		return fmt.Errorf("mengunci supervise=oe: %w", err)
+		return fmt.Errorf("mengunci supervisor: %w", err)
 	}
 
 	defer rows.Close()
@@ -224,7 +224,7 @@ func (r *supervisorPGRepo) UpdateQuota(ctx context.Context, id, quota, version i
 	c, err := scanSupervisor(
 		r.db.QueryRow(
 			ctx,
-			`UPDATE supervisor
+			`UPDATE supervisors
 			 SET quota = $1, version = version + 1
 			 WHERE id = $2
 			   AND version = $3
