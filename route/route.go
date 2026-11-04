@@ -16,12 +16,13 @@ type Dependencies struct {
 	Pool              *pgxpool.Pool
 	Mongoclient       *mongo.Client
 	JWT               *helper.JWTManager
+	Permission        *helper.PermissionSet
 	StudentHandler    *service.StudentHandler
 	AuthHandler       *service.AuthHandler
 	UserHandler       *service.UserHandler
 	CourseHandler     *service.CourseService
 	SupervisorHandler *service.SupervisorServices
-	Permission        *helper.PermissionSet
+	ReviewHandler     *service.ReviewService
 }
 
 func Register(app *fiber.App, deps Dependencies) {
@@ -73,6 +74,10 @@ func Register(app *fiber.App, deps Dependencies) {
 	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
 	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
 
+	courses.Get("/:id/reviews", deps.ReviewHandler.ListByCourse)
+	courses.Get("/:id/reviews/summary", deps.ReviewHandler.Summary)
+	courses.Post("/:id/reviews", deps.ReviewHandler.Create)
+
 	enrollemnts := api.Group("/enrollments", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
 
 	enrollemnts.Post("/swap", deps.CourseHandler.Swap)
@@ -88,6 +93,13 @@ func Register(app *fiber.App, deps Dependencies) {
 	supervisors.Post("/switch", deps.SupervisorHandler.Switch)
 	supervisors.Patch("/:id", deps.SupervisorHandler.UpdateQuota)
 
+	// review
+	reviews := api.Group("/reviews", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	reviews.Get("/:id", deps.ReviewHandler.Get)
+	reviews.Patch("/:id", deps.ReviewHandler.Update)
+	reviews.Delete("/:id", deps.ReviewHandler.Delete)
+	reviews.Post("/:id/replies", deps.ReviewHandler.Reply)
+	reviews.Post("/:id/helpful", deps.ReviewHandler.MarkHelpful)
 }
 
 func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {
