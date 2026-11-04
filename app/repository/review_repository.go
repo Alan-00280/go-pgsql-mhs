@@ -30,6 +30,7 @@ type reviewMongoRepository struct {
 
 type ReviewRepository interface {
 	EnsureIndexes(ctx context.Context) error
+	
 
 	Create(ctx context.Context, r model.Review) (model.Review, error)
 	FindByID(ctx context.Context, id string) (model.Review, error)
