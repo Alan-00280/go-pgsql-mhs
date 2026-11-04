@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
@@ -224,18 +225,242 @@ func (r *reviewMongoRepository) FindByCourse(ctx context.Context, q model.Review
 	return result, nil
 }
 func (r *reviewMongoRepository) UpdateOwn(ctx context.Context, id string, userID int, req model.UpdateReviewRequest) (model.Review, error) {
-	return model.Review{}, nil
+	oid, err := parseID(id)
+	if err != nil {
+		return model.Review{}, err
+	}
+
+	set := bson.M{"updated_at": now()}
+	if req.Comment != nil {
+		set["comment"] = *req.Comment
+	}
+	if req.Rating != nil {
+		set["rating"] = *req.Rating
+	}
+	if req.Tags != nil {
+		set["tags"] = *req.Tags
+	}
+
+	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	var doc reviewDocument
+	err = r.coll.FindOneAndUpdate(ctx,
+		bson.M{"_id": oid, "user_id": userID},
+		bson.M{"$set": set},
+		opts,
+	).Decode(&doc)
+
+	if err == nil {
+		return doc.toModel(), nil
+	}
+
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return model.Review{}, fmt.Errorf("Mengubah ulasan: %w", err)
+	}
+
+	return model.Review{}, r.whyNoMatch(ctx, oid)
 }
 func (r *reviewMongoRepository) Delete(ctx context.Context, id string, userID int, anyOwner bool) error {
+	oid, err := parseID(id)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"_id": oid}
+	if !anyOwner {
+		filter["user_id"] = userID
+	}
+
+	res, err := r.coll.DeleteOne(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("menghapus ulasan: %w", err)
+	}
+	if res.DeletedCount == 0 {
+		return r.whyNoMatch(ctx, oid)
+	}
+
 	return nil
 }
 
 func (r *reviewMongoRepository) AddReply(ctx context.Context, id string, reply model.Reply) (model.Review, error) {
-	return model.Review{}, nil
+	oid, err := parseID(id)
+	if err != nil {
+		return model.Review{}, err
+	}
+
+	doc := replyDocument{
+		ID:        bson.NewObjectID(),
+		UserID:    reply.UserID,
+		Username:  reply.Username,
+		Body:      reply.Body,
+		CreatedAt: now(),
+	}
+	limitField := "replies." + strconv.Itoa(MaxRepliesPerReview-1)
+
+	var updated reviewDocument
+	err = r.coll.FindOneAndUpdate(ctx,
+		bson.M{"_id": oid, limitField: bson.M{"$exists": false}},
+		bson.M{"$push": bson.M{"replies": doc}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&updated)
+
+	if err == nil {
+		return updated.toModel(), nil
+	}
+
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return model.Review{}, fmt.Errorf("menambah balasan: %w", err)
+	}
+
+	count, err := r.coll.CountDocuments(ctx, bson.M{"_id": oid})
+	if err != nil {
+		return model.Review{}, fmt.Errorf("memeriksa ulasan: %w", err)
+	}
+
+	if count == 0 {
+		return model.Review{}, ErrNotFound
+	}
+
+	return model.Review{}, ErrReplyLimit
 }
 func (r *reviewMongoRepository) MarkHelpful(ctx context.Context, id string, userID int) (model.Review, error) {
-	return model.Review{}, nil
+	oid, err := parseID(id)
+	if err != nil {
+		return model.Review{}, err
+	}
+
+	var current reviewDocument
+	if err = r.coll.FindOne(ctx, bson.M{
+		"_id": oid,
+	}).Decode(&current); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return model.Review{}, ErrNotFound
+		}
+	}
+
+	if current.UserID == userID {
+		return model.Review{}, ErrOwnReview
+	}
+
+	var updated reviewDocument
+	err = r.coll.FindOneAndUpdate(ctx,
+		bson.M{
+			"_id":         oid,
+			"user_id":     bson.M{"$ne": userID},
+			"helpfull_by": bson.M{"$ne": userID},
+		},
+		bson.M{
+			"$addToSet": bson.M{"helpfull_by": userID},
+			"$inc":      bson.M{"helpfull_count": 1},
+		},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&updated)
+
+	if err == nil {
+		return updated.toModel(), nil
+	}
+
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return model.Review{}, fmt.Errorf("menambah balasan: %w", err)
+	}
+
+	return model.Review{}, ErrAlreadyVoted
 }
 func (r *reviewMongoRepository) Summary(ctx context.Context, courseID int) (model.ReviewSummary, error) {
-	return model.ReviewSummary{}, nil
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{"course_id": courseID}}},
+		{{Key: "$facet", Value: bson.M{
+			"stats": bson.A{
+				bson.M{
+					"$group": bson.M{
+						"_id":   nil,
+						"count": bson.M{"$sum": 1},
+						"avg":   bson.M{"$avg": "$rating"},
+					},
+				},
+			},
+			"distribution": bson.A{
+				bson.M{
+					"$group": bson.M{
+						"_id":   "$rating",
+						"total": bson.M{"$sum": 1},
+					}},
+			},
+			"top_tags": bson.A{
+				bson.M{"$unwind": "$tags"},
+				bson.M{"$group": bson.M{
+					"_id":   "$tags",
+					"total": bson.M{"$sum": 1},
+				}},
+				bson.M{"$sort": bson.D{
+					{Key: "total", Value: -1},
+					{Key: "_id", Value: 1},
+				}},
+				bson.M{"$limit": 5},
+			},
+		}}},
+	}
+
+	cursor, err := r.coll.Aggregate(ctx, pipeline)
+	if err != nil {
+		return model.ReviewSummary{}, fmt.Errorf("meringkas ulasan: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var out []struct {
+		Stats []struct {
+			Count int     `bson:"count"`
+			Avg   float64 `bson:"avg"`
+		} `bson:"stats"`
+
+		Distribution []struct {
+			Rating int `bson:"_id"`
+			Total  int `bson:"total"`
+		} `bson:"top_tags"`
+
+		TopTags []struct {
+			Tag   string `bson:"_id"`
+			Total int    `bson:"total"`
+		}
+	}
+
+	if err := cursor.All(ctx, &out); err != nil {
+		return model.ReviewSummary{}, fmt.Errorf("membaca ringkasan: %w", err)
+	}
+
+	summary := model.ReviewSummary{
+		CourseID:     courseID,
+		Distribution: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+	}
+
+	if len(out) == 0 {
+		return summary, nil
+	}
+	if len(out[0].Stats) > 0 {
+		summary.Count = out[0].Stats[0].Count
+		summary.AverageRating = float64(int(out[0].Stats[0].Avg*100+0.5)) / 100 //pembulatan dua angka belakang koma
+	}
+
+	for _, d := range out[0].Distribution {
+		summary.Distribution[strconv.Itoa(d.Rating)] = d.Total
+	}
+	for _, d := range out[0].TopTags {
+		summary.TopTags = append(summary.TopTags, model.TagCount{Tag: d.Tag, Total: d.Total})
+	}
+
+	return summary, nil
+}
+
+// membedakan ulasan ga ada, dan ada tapi bukan milik anda
+func (r *reviewMongoRepository) whyNoMatch(ctx context.Context, oid bson.ObjectID) error {
+	count, err := r.coll.CountDocuments(ctx, bson.M{"_id": oid})
+	if err != nil {
+		return fmt.Errorf("memeriksa ulasan: %w", err)
+	}
+
+	if count == 0 {
+		return ErrNotFound
+	}
+
+	return ErrNotOwner
 }
