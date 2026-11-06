@@ -1,0 +1,324 @@
+package service
+
+import (
+	"errors"
+	"strings"
+
+	"github.com/Alan-00280/go-pgsql-mhs.git/app/model"
+	"github.com/Alan-00280/go-pgsql-mhs.git/app/repository"
+	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
+	"github.com/gofiber/fiber/v2"
+)
+
+type ReviewService struct {
+	reviews      repository.ReviewRepository
+	courses      repository.CourseRepository
+	perms        *helper.PermissionSet
+	appValidator *helper.AppValidator
+}
+
+func NewReviewService(
+	reviews repository.ReviewRepository,
+	courses repository.CourseRepository,
+	perms *helper.PermissionSet,
+	appValidator *helper.AppValidator,
+) *ReviewService {
+	return &ReviewService{
+		reviews:      reviews,
+		courses:      courses,
+		perms:        perms,
+		appValidator: appValidator,
+	}
+}
+
+// POST /courses/:id/reviews
+func (s *ReviewService) Create(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.BadRequest("id must be a positive number")
+	}
+
+	var req model.CreateReviewRequest
+	if err := c.BodyParser(&req); err != nil {
+		return helper.BadRequest("JSON Body invalid")
+	}
+
+	req.Comment = strings.TrimSpace(req.Comment)
+	req.Tags = NormalizeTags(req.Tags)
+
+	if errs := helper.ValidateStruct(req, *s.appValidator); len(errs) > 0 {
+		return helper.Validation(errs)
+	}
+	if _, err := s.courses.FindByID(ctx, id); err != nil {
+		return translateReviewError(err)
+	}
+
+	enrolled, err := s.courses.IsEnrolled(ctx, id, current.UserID)
+	if err != nil {
+		return helper.Internal(err)
+	}
+
+	if !enrolled {
+		return helper.NewError(fiber.StatusForbidden, "NOT_ENROLLED", "hanya peserta kelas yang boleh menulis ulasan")
+	}
+
+	created, err := s.reviews.Create(ctx, model.Review{
+		CourseID: id,
+		UserID:   current.UserID,
+		Username: current.Username,
+		Rating:   req.Rating,
+		Comment:  req.Comment,
+		Tags:     req.Tags,
+	})
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.Created(c, "ulasan berhasil disimpan", created, "/api/v1/reviews/"+created.ID)
+}
+
+// GET /courses/:id/reviews
+func (s *ReviewService) ListByCourse(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.BadRequest("id must be a positive number")
+	}
+
+	q := model.ReviewQuery{
+		CourseID: id,
+		Tag:      strings.ToLower(strings.TrimSpace(c.Query("tag"))),
+		Before:   c.Query("before"),
+		Limit:    c.QueryInt("limit", 10),
+	}
+	if q.Limit < 1 || q.Limit > 50 {
+		q.Limit = 10
+	}
+
+	want := q.Limit
+	q.Limit = want + 1
+
+	reviews, err := s.reviews.FindByCourse(ctx, q)
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	hasMore := len(reviews) > want
+	if hasMore {
+		reviews = reviews[:want]
+	}
+
+	next := ""
+	if hasMore {
+		next = reviews[len(reviews)-1].ID
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "daftar ulasan berhasil diambil",
+		"data":    reviews,
+		"meta": fiber.Map{
+			"limit":       want,
+			"has_more":    hasMore,
+			"next_before": next,
+		},
+	})
+}
+
+// GET /courses/:id/reviews/summary
+func (s *ReviewService) Summary(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.BadRequest("id must be a positive number")
+	}
+
+	if _, err := s.courses.FindByID(ctx, id); err != nil {
+		return translateReviewError(err)
+	}
+
+	summary, err := s.reviews.Summary(ctx, id)
+	if err != nil {
+		return helper.Internal(err)
+	}
+
+	return helper.Success(c, "ringkasan ulasan berhasil diambil", summary)
+}
+
+// GET /reviews/:id
+func (s *ReviewService) Get(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	review, err := s.reviews.FindByID(ctx, c.Params("id"))
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.Success(c, "ulasan ditemulan", review)
+}
+
+// PATCH /reviews/:id
+func (s *ReviewService) Update(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	var req model.UpdateReviewRequest
+	if err := c.BodyParser(&req); err != nil {
+		return helper.BadRequest("JSON Body invalid")
+	}
+
+	if req.Rating == nil && req.Comment == nil && req.Tags == nil {
+		return helper.BadRequest("tidak ada field yang diubah")
+	}
+
+	if req.Comment != nil {
+		trimmed := strings.TrimSpace(*req.Comment)
+		req.Comment = &trimmed
+	}
+
+	if req.Rating != nil {
+		normalized := NormalizeTags(*req.Tags)
+		req.Tags = &normalized
+	}
+
+	if errs := helper.ValidateStruct(req, *s.appValidator); errs != nil {
+		return helper.Validation(errs)
+	}
+
+	updated, err := s.reviews.UpdateOwn(ctx, c.Params("id"), current.UserID, req)
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.Success(c, "ulasan berhasil diperbaharui", updated)
+}
+
+// DELETE /reviews/:id
+func (s *ReviewService) Delete(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	anyOwner := s.perms.Can(current.Role, "review:moderate")
+	if err := s.reviews.Delete(ctx, c.Params("id"), current.UserID, anyOwner); err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.NoContent(c)
+}
+
+// POST /reviews/:id/replies
+func (s *ReviewService) Reply(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	var req model.ReplyRequest
+	if err := c.BodyParser(&req); err != nil {
+		return helper.BadRequest("JSON Body invalid")
+	}
+
+	req.Body = strings.TrimSpace(req.Body)
+	if errs := helper.ValidateStruct(req, *s.appValidator); errs != nil {
+		return helper.Validation(errs)
+	}
+
+	updated, err := s.reviews.AddReply(ctx, c.Params("id"), model.Reply{
+		UserID:   current.UserID,
+		Username: current.Username,
+		Body:     req.Body,
+	})
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.Created(c, "balasan berhasil ditambahkan", updated, "/api/v1/reviews/"+c.Params("id"))
+}
+
+// POST /revies/:id/helpful
+func (s *ReviewService) MarkHelpful(c *fiber.Ctx) error {
+	ctx, cancel := helper.ReqCtx(c)
+	defer cancel()
+
+	current, ok := helper.CurentUser(c)
+	if !ok {
+		return helper.Unauthorized("can't verify your identity")
+	}
+
+	updated, err := s.reviews.MarkHelpful(ctx, c.Params("id"), current.UserID)
+	if err != nil {
+		return translateReviewError(err)
+	}
+
+	return helper.Success(c, "penilaian berhasil masuk", updated)
+}
+
+func translateReviewError(err error) error {
+	switch {
+	case errors.Is(err, repository.ErrInvalidID):
+		return helper.BadRequest("id ulasan tidak valid")
+
+	case errors.Is(err, repository.ErrNotFound):
+		return helper.NotFound("data tidak ditemukan")
+
+	case errors.Is(err, repository.ErrDuplicate):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"ALREADY_REVIEWED",
+			"Anda sudah menulis ulasan untuk kelas ini, ubah ulasan yang ada",
+		)
+
+	case errors.Is(err, repository.ErrNotOwner):
+		return helper.Forbidden("hanya pemilik ulasan yang boleh melakukan ini")
+
+	case errors.Is(err, repository.ErrOwnReview):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"OWN_REVIEW",
+			"tidak dapat menilai ulasan sendiri",
+		)
+
+	case errors.Is(err, repository.ErrAlreadyVoted):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"ALREADY_VOTED",
+			"Anda sudah menilai ulasan ini",
+		)
+
+	case errors.Is(err, repository.ErrReplyLimit):
+		return helper.NewError(
+			fiber.StatusConflict,
+			"REPLY_LIMIT",
+			"jumlah balasan sudah mencapai batas",
+		)
+
+	default:
+		return helper.Internal(err)
+	}
+}

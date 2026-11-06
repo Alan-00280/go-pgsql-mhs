@@ -99,13 +99,19 @@ func messageFor(fe validator.FieldError, appValidator AppValidator) string {
 	case "email":
 		return "format email tidak valid"
 	case "min":
-		if fe.Kind() == reflect.String {
+		switch fe.Kind() {
+		case reflect.String:
 			return "minimal " + fe.Param() + " karakter"
+		case reflect.Array, reflect.Slice, reflect.Map:
+			return "minimal " + fe.Param() + " item"
 		}
 		return "minimal " + fe.Param()
 	case "max":
-		if fe.Kind() == reflect.String {
+		switch fe.Kind() {
+		case reflect.String:
 			return "maksimal " + fe.Param() + " karakter"
+		case reflect.Array, reflect.Slice, reflect.Map:
+			return "maksimal " + fe.Param() + " item"
 		}
 		return "maksimal " + fe.Param()
 	case "alphanum":

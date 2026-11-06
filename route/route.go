@@ -9,17 +9,21 @@ import (
 	"github.com/Alan-00280/go-pgsql-mhs.git/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Dependencies struct {
 	Pool              *pgxpool.Pool
+	Mongoclient       *mongo.Client
 	JWT               *helper.JWTManager
+	Permission        *helper.PermissionSet
 	StudentHandler    *service.StudentHandler
 	AuthHandler       *service.AuthHandler
 	UserHandler       *service.UserHandler
 	CourseHandler     *service.CourseService
 	SupervisorHandler *service.SupervisorServices
-	Permission        *helper.PermissionSet
+	ReviewHandler     *service.ReviewService
+	PortofolioHandler *service.PortofolioService
 }
 
 func Register(app *fiber.App, deps Dependencies) {
@@ -27,7 +31,7 @@ func Register(app *fiber.App, deps Dependencies) {
 	permissions := deps.Permission
 
 	// PUBLIK
-	api.Get("/health", healthCheck(deps.Pool))
+	api.Get("/health", healthCheck(deps.Pool, deps.Mongoclient))
 
 	// AUTHENTICATION
 	auth := api.Group("/auth", middleware.RequireJSON)
@@ -58,6 +62,11 @@ func Register(app *fiber.App, deps Dependencies) {
 	student.Patch("/:id", deps.StudentHandler.Patch)
 	student.Get("/:id", deps.StudentHandler.Get)
 
+	student.Get("/:id/portfolio", deps.PortofolioHandler.Get)
+	student.Put("/:id/portfolio", deps.PortofolioHandler.Put)
+	student.Post("/:id/portfolio/projects", deps.PortofolioHandler.AddProject)
+	student.Delete("/:id/portfolio/projects/:projectId", deps.PortofolioHandler.DeleteProject)
+
 	// --- kelas dan KRS ---
 	courses := api.Group("/courses", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
 
@@ -66,13 +75,16 @@ func Register(app *fiber.App, deps Dependencies) {
 	courses.Get("/", deps.CourseHandler.List)
 	courses.Get("/mine", deps.CourseHandler.Mine)
 	courses.Get("/:id", deps.CourseHandler.Get)
+	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
 
 	courses.Post("/:id/enroll", deps.CourseHandler.Enroll)
 	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
-	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
+
+	courses.Get("/:id/reviews", deps.ReviewHandler.ListByCourse)
+	courses.Get("/:id/reviews/summary", deps.ReviewHandler.Summary)
+	courses.Post("/:id/reviews", deps.ReviewHandler.Create)
 
 	enrollemnts := api.Group("/enrollments", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
-
 	enrollemnts.Post("/swap", deps.CourseHandler.Swap)
 
 	// supervisors
@@ -86,18 +98,34 @@ func Register(app *fiber.App, deps Dependencies) {
 	supervisors.Post("/switch", deps.SupervisorHandler.Switch)
 	supervisors.Patch("/:id", deps.SupervisorHandler.UpdateQuota)
 
+	// review
+	reviews := api.Group("/reviews", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	reviews.Get("/:id", deps.ReviewHandler.Get)
+	reviews.Patch("/:id", deps.ReviewHandler.Update)
+	reviews.Delete("/:id", deps.ReviewHandler.Delete)
+	reviews.Post("/:id/replies", deps.ReviewHandler.Reply)
+	reviews.Post("/:id/helpful", deps.ReviewHandler.MarkHelpful)
+
+	// portofolio
+	portofolios := api.Group("/portfolios", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	portofolios.Get("/stats/technologies", deps.PortofolioHandler.TechSummary)
 }
 
-func healthCheck(pool *pgxpool.Pool) fiber.Handler {
+func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
 		defer cancel()
 
 		if err := pool.Ping(ctx); err != nil {
 			// ERR 503 - Service Unavailable
-			return helper.ServiceUnavailable("database can't be reached")
+			return helper.ServiceUnavailable("PSQL database can't be reached")
 		}
 
-		return helper.Ok(c, "server and database is OK!", nil)
+		if err := mongoClient.Ping(ctx, nil); err != nil {
+			// ERR 503 - Service Unavailable
+			return helper.ServiceUnavailable("MongoDB database can't be reached")
+		}
+
+		return helper.Ok(c, "server and databases is OK!", nil)
 	}
 }
