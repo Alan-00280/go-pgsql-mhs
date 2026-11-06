@@ -24,29 +24,6 @@ var (
 // konstanta batas pertumbuhan array replies
 const MaxRepliesPerReview = 50
 
-type reviewMongoRepository struct {
-	coll *mongo.Collection
-}
-
-type ReviewRepository interface {
-	EnsureIndexes(ctx context.Context) error
-	
-
-	Create(ctx context.Context, r model.Review) (model.Review, error)
-	FindByID(ctx context.Context, id string) (model.Review, error)
-	FindByCourse(ctx context.Context, q model.ReviewQuery) ([]model.Review, error)
-	UpdateOwn(ctx context.Context, id string, userID int, req model.UpdateReviewRequest) (model.Review, error)
-	Delete(ctx context.Context, id string, userID int, anyOwner bool) error
-
-	AddReply(ctx context.Context, id string, reply model.Reply) (model.Review, error)
-	MarkHelpful(ctx context.Context, id string, userID int) (model.Review, error)
-	Summary(ctx context.Context, courseID int) (model.ReviewSummary, error)
-}
-
-func NewReviewRepository(db *mongo.Database) ReviewRepository {
-	return &reviewMongoRepository{coll: db.Collection("course_reviews")}
-}
-
 // Struct untuk mendefinisikan bentuk yang SEBAGAIMANA TERSIMPAN di MongoDB
 // json tidak diperlukan karena bentuk struct ini tidak dikirim ke client
 type reviewDocument struct {
@@ -104,17 +81,26 @@ func (d reviewDocument) toModel() model.Review {
 	}
 }
 
-func now() time.Time {
-	return time.Now().UTC().Truncate(time.Millisecond)
+type reviewMongoRepository struct {
+	coll *mongo.Collection
 }
 
-func parseID(id string) (bson.ObjectID, error) {
-	oid, err := bson.ObjectIDFromHex(id)
-	if err != nil {
-		return bson.ObjectID{}, ErrInvalidID
-	}
+type ReviewRepository interface {
+	EnsureIndexes(ctx context.Context) error
 
-	return oid, nil
+	Create(ctx context.Context, r model.Review) (model.Review, error)
+	FindByID(ctx context.Context, id string) (model.Review, error)
+	FindByCourse(ctx context.Context, q model.ReviewQuery) ([]model.Review, error)
+	UpdateOwn(ctx context.Context, id string, userID int, req model.UpdateReviewRequest) (model.Review, error)
+	Delete(ctx context.Context, id string, userID int, anyOwner bool) error
+
+	AddReply(ctx context.Context, id string, reply model.Reply) (model.Review, error)
+	MarkHelpful(ctx context.Context, id string, userID int) (model.Review, error)
+	Summary(ctx context.Context, courseID int) (model.ReviewSummary, error)
+}
+
+func NewReviewRepository(db *mongo.Database) ReviewRepository {
+	return &reviewMongoRepository{coll: db.Collection("course_reviews")}
 }
 
 func (r *reviewMongoRepository) EnsureIndexes(ctx context.Context) error {
@@ -225,6 +211,7 @@ func (r *reviewMongoRepository) FindByCourse(ctx context.Context, q model.Review
 
 	return result, nil
 }
+
 func (r *reviewMongoRepository) UpdateOwn(ctx context.Context, id string, userID int, req model.UpdateReviewRequest) (model.Review, error) {
 	oid, err := parseID(id)
 	if err != nil {
@@ -259,8 +246,9 @@ func (r *reviewMongoRepository) UpdateOwn(ctx context.Context, id string, userID
 		return model.Review{}, fmt.Errorf("Mengubah ulasan: %w", err)
 	}
 
-	return model.Review{}, r.whyNoMatch(ctx, oid)
+	return model.Review{}, r.whyNoMatchReview(ctx, oid)
 }
+
 func (r *reviewMongoRepository) Delete(ctx context.Context, id string, userID int, anyOwner bool) error {
 	oid, err := parseID(id)
 	if err != nil {
@@ -277,7 +265,7 @@ func (r *reviewMongoRepository) Delete(ctx context.Context, id string, userID in
 		return fmt.Errorf("menghapus ulasan: %w", err)
 	}
 	if res.DeletedCount == 0 {
-		return r.whyNoMatch(ctx, oid)
+		return r.whyNoMatchReview(ctx, oid)
 	}
 
 	return nil
@@ -417,12 +405,12 @@ func (r *reviewMongoRepository) Summary(ctx context.Context, courseID int) (mode
 		Distribution []struct {
 			Rating int `bson:"_id"`
 			Total  int `bson:"total"`
-		} `bson:"top_tags"`
+		} `bson:"distribution"`
 
 		TopTags []struct {
 			Tag   string `bson:"_id"`
 			Total int    `bson:"total"`
-		}
+		} `bson:"top_tags"`
 	}
 
 	if err := cursor.All(ctx, &out); err != nil {
@@ -453,7 +441,7 @@ func (r *reviewMongoRepository) Summary(ctx context.Context, courseID int) (mode
 }
 
 // membedakan ulasan ga ada, dan ada tapi bukan milik anda
-func (r *reviewMongoRepository) whyNoMatch(ctx context.Context, oid bson.ObjectID) error {
+func (r *reviewMongoRepository) whyNoMatchReview(ctx context.Context, oid bson.ObjectID) error {
 	count, err := r.coll.CountDocuments(ctx, bson.M{"_id": oid})
 	if err != nil {
 		return fmt.Errorf("memeriksa ulasan: %w", err)

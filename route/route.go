@@ -69,17 +69,16 @@ func Register(app *fiber.App, deps Dependencies) {
 	courses.Get("/", deps.CourseHandler.List)
 	courses.Get("/mine", deps.CourseHandler.Mine)
 	courses.Get("/:id", deps.CourseHandler.Get)
+	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
 
 	courses.Post("/:id/enroll", deps.CourseHandler.Enroll)
 	courses.Delete("/:id/enroll", deps.CourseHandler.Drop)
-	courses.Patch("/:id", middleware.RequirePermission(permissions, "course:manage"), deps.CourseHandler.UpdateQuota)
 
 	courses.Get("/:id/reviews", deps.ReviewHandler.ListByCourse)
 	courses.Get("/:id/reviews/summary", deps.ReviewHandler.Summary)
 	courses.Post("/:id/reviews", deps.ReviewHandler.Create)
 
 	enrollemnts := api.Group("/enrollments", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
-
 	enrollemnts.Post("/swap", deps.CourseHandler.Swap)
 
 	// supervisors
