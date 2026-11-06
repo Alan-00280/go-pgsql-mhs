@@ -121,6 +121,12 @@ func main() {
 		logger.Error("gagal membuat index MongoDB", slog.String("[ERROR]", err.Error()))
 	}
 
+	portofolioRepo := repository.NewPortofolioRepository(mongoDB)
+	portofolioService := service.NewPortofolioService(portofolioRepo, studentRepo, permissionSet, appValidator)
+	if err := portofolioRepo.EnsureIndexes(context.Background()); err != nil {
+		logger.Error("gagal membuat index portofolio MongoDB", slog.String("[ERROR]", err.Error()))
+	}
+
 	deps := route.Dependencies{
 		Pool:              pool,
 		Mongoclient:       mongoClient,
@@ -132,6 +138,7 @@ func main() {
 		CourseHandler:     courseService,
 		SupervisorHandler: superviserService,
 		ReviewHandler:     reviewService,
+		PortofolioHandler: portofolioService,
 	}
 
 	// APP

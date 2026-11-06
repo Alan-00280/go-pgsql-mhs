@@ -59,6 +59,7 @@ func (d portofolioDocument) toModel() model.Portofolio {
 			Technologies: p.Technologies,
 			Link:         p.Link,
 			Year:         p.Year,
+			CreatedAt:    p.CreatedAt,
 		})
 	}
 
@@ -67,7 +68,7 @@ func (d portofolioDocument) toModel() model.Portofolio {
 		certificates = append(certificates, model.Certificate{
 			ID:        c.ID.Hex(),
 			Title:     c.Title,
-			Publisher: c.Title,
+			Publisher: c.Publisher,
 			Date:      c.Date,
 		})
 	}
@@ -95,10 +96,11 @@ type PortofolioRepository interface {
 	Get(ctx context.Context, q model.PortofolioQuery) ([]model.Portofolio, error)
 	Create(ctx context.Context, p model.Portofolio) (model.Portofolio, error)
 	FindByID(ctx context.Context, id string) (model.Portofolio, error)
-	UpdateOwn(ctx context.Context, id string, userID int, req model.UpdatePortofolioReq) (model.Portofolio, error)
+	Update(ctx context.Context, id string, userID int, anyOwner bool, req model.UpdatePortofolioReq) (model.Portofolio, error)
 	Delete(ctx context.Context, id string, userID int, anyOwner bool) error
 
-	AddProject(ctx context.Context, id string, project model.Project) (model.Portofolio, error)
+	AddProject(ctx context.Context, id string, userID int, anyOwner bool, project model.Project) (model.Portofolio, error)
+	DeleteProject(ctx context.Context, id, projectID string, userID int, anyOwner bool) error
 	TechSummary(ctx context.Context) (model.PortofolioTechSummary, error)
 }
 
@@ -220,7 +222,7 @@ func (r *portofolioMongoRepository) FindByID(ctx context.Context, id string) (mo
 	return portofolioDoc.toModel(), nil
 }
 
-func (r *portofolioMongoRepository) UpdateOwn(ctx context.Context, id string, userID int, req model.UpdatePortofolioReq) (model.Portofolio, error) {
+func (r *portofolioMongoRepository) Update(ctx context.Context, id string, userID int, anyOwner bool, req model.UpdatePortofolioReq) (model.Portofolio, error) {
 	oid, err := parseID(id)
 	if err != nil {
 		return model.Portofolio{}, err
@@ -250,9 +252,14 @@ func (r *portofolioMongoRepository) UpdateOwn(ctx context.Context, id string, us
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
+	filter := bson.M{"_id": oid}
+	if !anyOwner {
+		filter["user_id"] = userID
+	}
+
 	var portofolioDoc portofolioDocument
 	err = r.coll.FindOneAndUpdate(ctx,
-		bson.M{"_id": oid, "user_id": userID},
+		filter,
 		bson.M{"$set": set},
 		opts,
 	).Decode(&portofolioDoc)
@@ -265,6 +272,9 @@ func (r *portofolioMongoRepository) UpdateOwn(ctx context.Context, id string, us
 		return model.Portofolio{}, fmt.Errorf("mengubah portofolio: %w", err)
 	}
 
+	if anyOwner {
+		return model.Portofolio{}, ErrNotFound
+	}
 	return model.Portofolio{}, r.whyNoMatchPorto(ctx, oid)
 }
 
@@ -290,7 +300,7 @@ func (r *portofolioMongoRepository) Delete(ctx context.Context, id string, userI
 	return nil
 }
 
-func (r *portofolioMongoRepository) AddProject(ctx context.Context, id string, project model.Project) (model.Portofolio, error) {
+func (r *portofolioMongoRepository) AddProject(ctx context.Context, id string, userID int, anyOwner bool, project model.Project) (model.Portofolio, error) {
 	oid, err := parseID(id)
 	if err != nil {
 		return model.Portofolio{}, err
@@ -305,11 +315,18 @@ func (r *portofolioMongoRepository) AddProject(ctx context.Context, id string, p
 		CreatedAt:    now(),
 	}
 	limitField := "projects." + strconv.Itoa(MaxProjectPerPortofolio-1)
+	filter := bson.M{"_id": oid, limitField: bson.M{"$exists": false}}
+	if !anyOwner {
+		filter["user_id"] = userID
+	}
 
 	var updated portofolioDocument
 	err = r.coll.FindOneAndUpdate(ctx,
-		bson.M{"_id": oid, limitField: bson.M{"$exists": false}},
-		bson.M{"$push": bson.M{"projects": projectDoc}},
+		filter,
+		bson.M{
+			"$push": bson.M{"projects": projectDoc},
+			"$set":  bson.M{"updated_at": now()},
+		},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	).Decode(&updated)
 
@@ -318,19 +335,69 @@ func (r *portofolioMongoRepository) AddProject(ctx context.Context, id string, p
 	}
 
 	if !errors.Is(err, mongo.ErrNoDocuments) {
-		return model.Portofolio{}, fmt.Errorf("menambah balasan: %w", err)
+		return model.Portofolio{}, fmt.Errorf("menambah proyek portofolio: %w", err)
 	}
 
-	count, err := r.coll.CountDocuments(ctx, bson.M{"_id": oid})
+	countFilter := bson.M{"_id": oid}
+	if !anyOwner {
+		countFilter["user_id"] = userID
+	}
+	count, err := r.coll.CountDocuments(ctx, countFilter)
 	if err != nil {
-		return model.Portofolio{}, fmt.Errorf("memeriksa ulasan: %w", err)
+		return model.Portofolio{}, fmt.Errorf("memeriksa portofolio: %w", err)
 	}
 
 	if count == 0 {
+		if !anyOwner {
+			return model.Portofolio{}, r.whyNoMatchPorto(ctx, oid)
+		}
 		return model.Portofolio{}, ErrNotFound
 	}
 
 	return model.Portofolio{}, ErrProjectsLimit
+}
+
+func (r *portofolioMongoRepository) DeleteProject(ctx context.Context, id, projectID string, userID int, anyOwner bool) error {
+	oid, err := parseID(id)
+	if err != nil {
+		return err
+	}
+	projectOID, err := parseID(projectID)
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{
+		"_id":          oid,
+		"projects._id": projectOID,
+	}
+	if !anyOwner {
+		filter["user_id"] = userID
+	}
+
+	result, err := r.coll.UpdateOne(ctx, filter, bson.M{
+		"$pull": bson.M{"projects": bson.M{"_id": projectOID}},
+		"$set":  bson.M{"updated_at": now()},
+	})
+	if err != nil {
+		return fmt.Errorf("menghapus proyek portofolio: %w", err)
+	}
+	if result.MatchedCount > 0 {
+		return nil
+	}
+
+	if anyOwner {
+		return ErrNotFound
+	}
+
+	count, err := r.coll.CountDocuments(ctx, bson.M{"_id": oid, "user_id": userID})
+	if err != nil {
+		return fmt.Errorf("memeriksa portofolio: %w", err)
+	}
+	if count == 0 {
+		return r.whyNoMatchPorto(ctx, oid)
+	}
+	return ErrNotFound
 }
 
 func (r *portofolioMongoRepository) TechSummary(ctx context.Context) (model.PortofolioTechSummary, error) {
@@ -359,7 +426,7 @@ func (r *portofolioMongoRepository) TechSummary(ctx context.Context) (model.Port
 
 	cursor, err := r.coll.Aggregate(ctx, pipeline)
 	if err != nil {
-		return model.PortofolioTechSummary{}, fmt.Errorf("meringkas ulasan: %w", err)
+		return model.PortofolioTechSummary{}, fmt.Errorf("meringkas teknologi portofolio: %w", err)
 	}
 	defer cursor.Close(ctx)
 
@@ -374,7 +441,7 @@ func (r *portofolioMongoRepository) TechSummary(ctx context.Context) (model.Port
 		} `bson:"top_technologies"`
 	}
 	if err := cursor.All(ctx, &out); err != nil {
-		return model.PortofolioTechSummary{}, fmt.Errorf("membaca ringkasan: %w", err)
+		return model.PortofolioTechSummary{}, fmt.Errorf("membaca ringkasan teknologi: %w", err)
 	}
 
 	techSummary := model.PortofolioTechSummary{}

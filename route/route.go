@@ -23,6 +23,7 @@ type Dependencies struct {
 	CourseHandler     *service.CourseService
 	SupervisorHandler *service.SupervisorServices
 	ReviewHandler     *service.ReviewService
+	PortofolioHandler *service.PortofolioService
 }
 
 func Register(app *fiber.App, deps Dependencies) {
@@ -60,6 +61,11 @@ func Register(app *fiber.App, deps Dependencies) {
 	student.Put("/:id", deps.StudentHandler.Replace)
 	student.Patch("/:id", deps.StudentHandler.Patch)
 	student.Get("/:id", deps.StudentHandler.Get)
+
+	student.Get("/:id/portfolio", deps.PortofolioHandler.Get)
+	student.Put("/:id/portfolio", deps.PortofolioHandler.Put)
+	student.Post("/:id/portfolio/projects", deps.PortofolioHandler.AddProject)
+	student.Delete("/:id/portfolio/projects/:projectId", deps.PortofolioHandler.DeleteProject)
 
 	// --- kelas dan KRS ---
 	courses := api.Group("/courses", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
@@ -99,6 +105,10 @@ func Register(app *fiber.App, deps Dependencies) {
 	reviews.Delete("/:id", deps.ReviewHandler.Delete)
 	reviews.Post("/:id/replies", deps.ReviewHandler.Reply)
 	reviews.Post("/:id/helpful", deps.ReviewHandler.MarkHelpful)
+
+	// portofolio
+	portofolios := api.Group("/portfolios", middleware.RequireJSON, middleware.RequireAuth(deps.JWT))
+	portofolios.Get("/stats/technologies", deps.PortofolioHandler.TechSummary)
 }
 
 func healthCheck(pool *pgxpool.Pool, mongoClient *mongo.Client) fiber.Handler {

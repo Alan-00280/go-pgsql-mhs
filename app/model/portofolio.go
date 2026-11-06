@@ -33,7 +33,7 @@ type Certificate struct {
 type CreatePortofolioReq struct {
 	Headline     string                 `json:"headline" validate:"required,min=5,max=150"`
 	Bio          string                 `json:"bio" validate:"required,min=5,max=500"`
-	Certificates []CreateCertificateReq `json:"certificates" validate:"required"`
+	Certificates []CreateCertificateReq `json:"certificates" validate:"required,dive"`
 }
 
 type CreateProjectReq struct {
