@@ -42,11 +42,7 @@ func (s *PortofolioService) Get(c *fiber.Ctx) error {
 		return helper.BadRequest("id must be a positive number")
 	}
 
-	current, ok := helper.CurentUser(c)
-	if !ok {
-		return helper.Unauthorized("can't verify your identity")
-	}
-	if _, err := s.getStudent(ctx, studentID, current, false); err != nil {
+	if _, err := s.getStudent(ctx, studentID); err != nil {
 		return err
 	}
 
@@ -75,7 +71,7 @@ func (s *PortofolioService) Put(c *fiber.Ctx) error {
 	if !ok {
 		return helper.Unauthorized("can't verify your identity")
 	}
-	if _, err := s.getStudent(ctx, studentID, current, true); err != nil {
+	if _, err := s.getStudent(ctx, studentID); err != nil {
 		return err
 	}
 
@@ -138,7 +134,7 @@ func (s *PortofolioService) AddProject(c *fiber.Ctx) error {
 	if !ok {
 		return helper.Unauthorized("can't verify your identity")
 	}
-	if _, err := s.getStudent(ctx, studentID, current, true); err != nil {
+	if _, err := s.getStudent(ctx, studentID); err != nil {
 		return err
 	}
 
@@ -204,7 +200,7 @@ func (s *PortofolioService) DeleteProject(c *fiber.Ctx) error {
 	if !ok {
 		return helper.Unauthorized("can't verify your identity")
 	}
-	if _, err := s.getStudent(ctx, studentID, current, true); err != nil {
+	if _, err := s.getStudent(ctx, studentID); err != nil {
 		return err
 	}
 
@@ -244,21 +240,11 @@ func (s *PortofolioService) TechSummary(c *fiber.Ctx) error {
 func (s *PortofolioService) getStudent(
 	ctx context.Context,
 	studentID int,
-	current model.AuthUser,
-	write bool,
 ) (model.Student, error) {
 	student, err := s.students.FindById(ctx, studentID)
 	if err != nil {
 		return model.Student{}, translateErr(err, "student")
 	}
-
-	// permission := "student:read:any"
-	// if write {
-	// 	permission = "student:update:any"
-	// }
-	// if !CanAccessStudent(current, student.OwnerID, student.ID, s.perms, permission) {
-	// 	return model.Student{}, helper.Forbidden("anda tidak dapat hak untuk mengakses portofolio mahasiswa ini")
-	// }
 	return student, nil
 }
 
