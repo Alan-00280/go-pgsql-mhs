@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"flag"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -16,82 +16,120 @@ import (
 	"github.com/Alan-00280/go-pgsql-mhs.git/database"
 	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
 	"github.com/Alan-00280/go-pgsql-mhs.git/route"
+	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const minJwtSecretLength = 32
 
 func main() {
-	// Load ENV
 	config.LoadEnv()
-
-	// Logger Config
 	logger := config.NewLogger()
 
-	// JWT Secret
-	jwtSecret := config.GetEnv("JWT_SECRET", "")
-	if len(jwtSecret) < minJwtSecretLength {
-		logger.Error("jwt secret isn't valid please check again", slog.Int("min length:", minJwtSecretLength))
+	// Satu program, tiga cara menjalankan:
+	//   go run . -role=api     hanya melayani HTTP
+	//   go run . -role=worker  hanya relay outbox dan worker queue
+	//   go run . -role=all     keduanya dalam satu proses
+	// Di production, api dan worker dijalankan sebagai proses terpisah agar
+	// masing-masing dapat diperbanyak sesuai bebannya.
+	role := flag.String("role", config.GetEnv("APP_ROLE", "all"), "api | worker | all")
+	flag.Parse()
+	runAPI := *role == "api" || *role == "all"
+	runWorker := *role == "worker" || *role == "all"
+	if !runAPI && !runWorker {
+		logger.Error("role tidak dikenal", slog.String("role", *role))
 		os.Exit(1)
 	}
 
-	// Create DB Pool (POSTGRES)
 	pool, err := database.NewPool(context.Background())
 	if err != nil {
-		fmt.Printf("Err: %v", err)
-		return
+		logger.Error("gagal terhubung ke database", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	defer pool.Close()
 
-	// Create MongoDB Client
+	// ctx dibatalkan ketika Ctrl+C ditekan atau sistem mengirim SIGTERM.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var app *fiber.App
+	if runAPI {
+		app = startAPI(logger, pool)
+		if app == nil {
+			os.Exit(1)
+		}
+	}
+
+	var stopWorker func()
+	if runWorker {
+		stopWorker = startWorker(ctx, logger, pool)
+		if stopWorker == nil {
+			os.Exit(1)
+		}
+	}
+
+	logger.Info("aplikasi berjalan", slog.String("role", *role))
+	<-ctx.Done()
+
+	// Urutan berhenti: pintu masuk ditutup lebih dulu (HTTP), baru kemudian
+	// pekerja di belakangnya.
+	if app != nil {
+		if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+			logger.Error("shutdown HTTP tidak rapi", slog.String("error", err.Error()))
+		}
+	}
+	if stopWorker != nil {
+		stopWorker()
+	}
+	logger.Info("aplikasi berhenti dengan rapi")
+}
+
+// startAPI menyiapkan seluruh kebutuhan HTTP. Mengembalikan nil bila gagal.
+func startAPI(logger *slog.Logger, pool *pgxpool.Pool) *fiber.App {
+	jwtSecret := config.GetEnv("JWT_SECRET", "")
+	if len(jwtSecret) < minJwtSecretLength {
+		logger.Error("jwt secret isn't valid please check again", slog.Int("min length:", minJwtSecretLength))
+		return nil
+	}
+
 	mongoClient, err := database.NewMongoClient(context.Background())
 	if err != nil {
-		logger.Error("Can't Connect to MongoDB", slog.String("[ERROR]", err.Error()))
+		logger.Error("gagal terhubung ke MongoDB", slog.String("[ERROR]", err.Error()))
+		return nil
 	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = mongoClient.Disconnect(ctx)
-	}()
 	mongoDB := mongoClient.Database(config.GetEnv("MONGO_DATABASE", "praktikum_be"))
 
-	// JWT Manager
 	jwtManager := helper.NewJWTManager(
 		jwtSecret,
 		config.GetEnv("JWT_ISSUER", "be-prak"),
 		time.Duration(config.GetEnvInt("JWT_ACCESS_TTL_MINUTES", 15))*time.Minute,
 	)
 
-	// Load Role Permissions
 	roleRepo := repository.NewRoleRepository(pool)
 	rawRolePerm, err := roleRepo.LoadPermissions(context.Background())
 	if err != nil {
 		logger.Error("gagal memuat role permission", slog.String("error", err.Error()))
-		os.Exit(1)
+		return nil
 	}
 
 	permissionSet := helper.NewPermissionSet(rawRolePerm)
 	logger.Info("berhasil memuat role permission", slog.Any("roles", permissionSet.KnownRoles()))
 
-	// Load Common Password
 	passwordCommonPath, err := filepath.Abs("./files/common_password.txt")
 	if err != nil {
 		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
-		os.Exit(1)
+		return nil
 	}
 
 	passwordCommonSet, err := helper.NewPasswordCommonSet(passwordCommonPath)
 	if err != nil {
 		logger.Error("gagal memuat password umum", slog.String("error", err.Error()))
-		os.Exit(1)
+		return nil
 	}
 
-	// App Validator
 	appValidator := helper.NewValidator(passwordCommonSet)
-
-	// TX Manager
 	txManager := repository.NewTxManager(pool)
 
-	// Repo -> Services
 	userRepo := repository.NewUserRepository(pool)
 	userService := service.NewUserHandler(userRepo, permissionSet, appValidator)
 
@@ -109,14 +147,14 @@ func main() {
 	studentService := service.NewStudentHandler(studentRepo, permissionSet, appValidator)
 
 	courseRepo := repository.NewCourseRepository(pool)
-	courseService := service.NewCourseService(courseRepo, txManager, appValidator)
+	outboxRepo := repository.NewOutboxRepository(pool)
+	courseService := service.NewCourseService(courseRepo, outboxRepo, txManager, appValidator)
 
 	supervisorRepo := repository.NewSupervisorRepository(pool)
 	superviserService := service.NewSupervisorServices(supervisorRepo, txManager, appValidator)
 
 	reviewRepo := repository.NewReviewRepository(mongoDB)
 	reviewService := service.NewReviewService(reviewRepo, courseRepo, permissionSet, appValidator)
-
 	if err := reviewRepo.EnsureIndexes(context.Background()); err != nil {
 		logger.Error("gagal membuat index MongoDB", slog.String("[ERROR]", err.Error()))
 	}
@@ -141,11 +179,15 @@ func main() {
 		PortofolioHandler: portofolioService,
 	}
 
-	// APP
 	app := config.NewApp(logger, deps)
-	port := config.GetEnv("APP_PORT", "3000")
 
-	// run
+	app.Hooks().OnShutdown(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return mongoClient.Disconnect(ctx)
+	})
+
+	port := config.GetEnv("APP_PORT", "3000")
 	go func() {
 		if err := app.Listen(":" + port); err != nil {
 			logger.Error("server stopped! ", slog.String("error", err.Error()))
@@ -153,19 +195,5 @@ func main() {
 		}
 	}()
 	logger.Info("server running...", slog.String("port", port))
-
-	// gracefull shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	logger.Info("shutting down server . . .")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := app.ShutdownWithContext(ctx); err != nil {
-		logger.Error("fail to shutdown system! ", slog.String("error", err.Error()))
-	}
-
-	logger.Info("server shutted down")
+	return app
 }
