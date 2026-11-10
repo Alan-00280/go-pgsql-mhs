@@ -17,6 +17,7 @@ import (
 	"github.com/Alan-00280/go-pgsql-mhs.git/helper"
 	"github.com/Alan-00280/go-pgsql-mhs.git/route"
 	"github.com/gofiber/fiber/v2"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -165,18 +166,23 @@ func startAPI(logger *slog.Logger, pool *pgxpool.Pool) *fiber.App {
 		logger.Error("gagal membuat index portofolio MongoDB", slog.String("[ERROR]", err.Error()))
 	}
 
+	inspector := asynq.NewInspector(config.RedisOpt())
+	notificationRepo := repository.NewNotificationRepository(pool)
+	notificationService := service.NewNotificationService(notificationRepo, outboxRepo, inspector)
+
 	deps := route.Dependencies{
-		Pool:              pool,
-		Mongoclient:       mongoClient,
-		JWT:               jwtManager,
-		Permission:        permissionSet,
-		UserHandler:       userService,
-		AuthHandler:       authService,
-		StudentHandler:    studentService,
-		CourseHandler:     courseService,
-		SupervisorHandler: superviserService,
-		ReviewHandler:     reviewService,
-		PortofolioHandler: portofolioService,
+		Pool:                pool,
+		Mongoclient:         mongoClient,
+		JWT:                 jwtManager,
+		Permission:          permissionSet,
+		UserHandler:         userService,
+		AuthHandler:         authService,
+		StudentHandler:      studentService,
+		CourseHandler:       courseService,
+		SupervisorHandler:   superviserService,
+		ReviewHandler:       reviewService,
+		PortofolioHandler:   portofolioService,
+		NotificationService: notificationService,
 	}
 
 	app := config.NewApp(logger, deps)
@@ -184,6 +190,7 @@ func startAPI(logger *slog.Logger, pool *pgxpool.Pool) *fiber.App {
 	app.Hooks().OnShutdown(func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		_ = inspector.Close()
 		return mongoClient.Disconnect(ctx)
 	})
 

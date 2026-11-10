@@ -154,3 +154,7 @@ func ParseCursorQuery(c *fiber.Ctx) model.CursorQuery {
 func ReqCtx(c *fiber.Ctx) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(c.UserContext(), 5*time.Second)
 }
+
+func RequestContext(c *fiber.Ctx) (context.Context, context.CancelFunc) {
+	return ReqCtx(c)
+}

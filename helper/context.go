@@ -12,6 +12,10 @@ func CurentUser(c *fiber.Ctx) (model.AuthUser, bool) {
 	return user, ok
 }
 
+func CurrentUser(c *fiber.Ctx) (model.AuthUser, bool) {
+	return CurentUser(c)
+}
+
 func RequestID(c *fiber.Ctx) string {
 	reqID, _ := c.Locals("requestid").(string)
 	return reqID
