@@ -61,6 +61,20 @@ func NewAuthHandler(
 //
 //	 POST /auth/register
 //		ambil ctx, check body JSON pakai c.BodyParser, trimspace username email, check validasi, hash password, panggil s.users.Create(), kembalikan helper.Created
+
+// Register godoc
+//
+// @Summary      Mendaftarkan akun baru
+// @Description  Role akun baru selalu "user". Password minimal 8 karakter dan memuat huruf serta angka.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      model.RegisterReq  true  "Data akun baru"
+// @Success      201   {object}  model.WebResponse{data=model.User}
+// @Failure      400   {object}  model.ErrorRespone  "Body bukan JSON yang valid"
+// @Failure      409   {object}  model.ErrorRespone  "Username sudah dipakai"
+// @Failure      422   {object}  model.ErrorRespone  "Validasi gagal; detail per field ada di fields"
+// @Router       /auth/register [post]
 func (s *AuthHandler) Register(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -104,6 +118,19 @@ func (s *AuthHandler) Register(c *fiber.Ctx) error {
 //
 //	 POST /auth/loign
 //		ambil ctx, cek body JSON, validasi, panggil s.users.FindByUsername(), helper.VerifyPassword, check is active, buat token pair, kembalikan helper.Success bersama token pair
+
+// Login godoc
+//
+// @Summary      Login dan mendapatkan pasangan token
+// @Description  Dibatasi 5 kali gagal per menit per IP.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      model.LoginReq  true  "Username dan password"
+// @Success      200   {object}  model.WebResponse{data=model.TokenPair}
+// @Failure      401   {object}  model.ErrorRespone  "Username atau password salah"
+// @Failure      429   {object}  model.ErrorRespone  "Terlalu banyak percobaan login"
+// @Router       /auth/login [post]
 func (s *AuthHandler) Login(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -144,6 +171,18 @@ func (s *AuthHandler) Login(c *fiber.Ctx) error {
 //
 //	 POST /auth/refresh
 //		ambil ctx, cek body JSON, cek string token, panggil findActive() pakai token, ambil user, Revoke(), issueTokenPair(), return helper.Success
+
+// Refresh godoc
+//
+// @Summary      Menukar refresh token dengan pasangan token baru
+// @Description  Refresh token lama langsung dicabut (rotation).
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      model.RefreshReq  true  "Refresh token"
+// @Success      200   {object}  model.WebResponse{data=model.TokenPair}
+// @Failure      401   {object}  model.ErrorRespone  "Refresh token tidak valid, kedaluwarsa, atau sudah dicabut"
+// @Router       /auth/refresh [post]
 func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
