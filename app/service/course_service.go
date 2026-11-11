@@ -77,10 +77,10 @@ func (s *CourseService) Mine(c *fiber.Ctx) error {
 	return helper.Success(
 		c,
 		"KRS berhasil diambil",
-		fiber.Map{
-			"courses":       courses,
-			"total_credits": total,
-			"max_credit":    MaxCreditsPerSemester,
+		model.MyCourses{
+			Courses:      courses,
+			TotalCredits: total,
+			MaxCredits:   MaxCreditsPerSemester,
 		},
 	)
 }
