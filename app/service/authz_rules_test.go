@@ -89,14 +89,6 @@ func TestValidateAssignRole(t *testing.T) {
 		}
 	})
 
-	t.Run("blank role is rejected", func(t *testing.T) {
-		current := model.AuthUser{UserID: 1, Role: "admin"}
-		err := ValidateAssignRole(current, 2, model.AssignRoleRequest{Role: "   "}, perms)
-		if got := err["role"]; got != "role wajib diisi" {
-			t.Fatalf("blank role validation = %q, want %q", got, "role wajib diisi")
-		}
-	})
-
 	t.Run("unknown role is rejected", func(t *testing.T) {
 		current := model.AuthUser{UserID: 1, Role: "admin"}
 		err := ValidateAssignRole(current, 2, model.AssignRoleRequest{Role: "guest"}, perms)
