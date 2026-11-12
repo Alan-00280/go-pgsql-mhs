@@ -3,6 +3,7 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -58,9 +59,9 @@ func newAPI(t *testing.T) api {
 	return api{app: app, jwt: jwtManager}
 }
 
-// enroll mengirim POST /courses/:id/enroll atas nama student dan
+// request mengirim permintaan HTTP terautentikasi atas nama student dan
 // mengembalikan status code beserta field "code" pada response.
-func (a api) enroll(t *testing.T, student model.User, courseID int) (int, string) {
+func (a api) request(t *testing.T, student model.User, method, path string, payload any) (int, string) {
 	t.Helper()
 
 	token, err := a.jwt.GenerateAccessToken(model.User{ID: student.ID, Username: student.Username, Role: "user"})
@@ -69,7 +70,17 @@ func (a api) enroll(t *testing.T, student model.User, courseID int) (int, string
 		return 0, ""
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/courses/"+strconv.Itoa(courseID)+"/enroll", nil)
+	var bodyReader io.Reader
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Errorf("marshal body: %v", err)
+			return 0, ""
+		}
+		bodyReader = bytes.NewReader(raw)
+	}
+
+	req := httptest.NewRequest(method, path, bodyReader)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -77,7 +88,7 @@ func (a api) enroll(t *testing.T, student model.User, courseID int) (int, string
 	if err != nil {
 		// t.Errorf, bukan t.Fatalf: fungsi ini juga dipanggil dari
 		// goroutine, dan t.Fatalf hanya boleh dipanggil dari goroutine test.
-		t.Errorf("request enroll: %v", err)
+		t.Errorf("request %s %s: %v", method, path, err)
 		return 0, ""
 	}
 	defer resp.Body.Close()
@@ -87,6 +98,28 @@ func (a api) enroll(t *testing.T, student model.User, courseID int) (int, string
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&body)
 	return resp.StatusCode, body.Code
+}
+
+// enroll mengirim POST /courses/:id/enroll atas nama student dan
+// mengembalikan status code beserta field "code" pada response.
+func (a api) enroll(t *testing.T, student model.User, courseID int) (int, string) {
+	t.Helper()
+	return a.request(t, student, http.MethodPost, "/api/v1/courses/"+strconv.Itoa(courseID)+"/enroll", nil)
+}
+
+// drop mengirim DELETE /courses/:id/enroll atas nama student.
+func (a api) drop(t *testing.T, student model.User, courseID int) (int, string) {
+	t.Helper()
+	return a.request(t, student, http.MethodDelete, "/api/v1/courses/"+strconv.Itoa(courseID)+"/enroll", nil)
+}
+
+// swap mengirim POST /enrollments/swap atas nama student.
+func (a api) swap(t *testing.T, student model.User, fromCourseID, toCourseID int) (int, string) {
+	t.Helper()
+	return a.request(t, student, http.MethodPost, "/api/v1/enrollments/swap", model.SwapRequest{
+		FromCourseID: fromCourseID,
+		ToCourseID:   toCourseID,
+	})
 }
 
 func countRows(t *testing.T, sql string, args ...any) int {
@@ -158,5 +191,88 @@ func TestEnrollEndpoint_ConcurrentCreditLimit(t *testing.T) {
 	enrolled := countRows(t, `SELECT COUNT(*) FROM enrollments WHERE user_id = $1`, student.ID)
 	if enrolled != maxCourses {
 		t.Errorf("baris enrollments = %d, seharusnya %d", enrolled, maxCourses)
+	}
+}
+
+// TestSwapEndpoint_DestinationFull_RollsBack memastikan pindah kelas ke
+// kelas tujuan yang penuh ditolak 409 COURSE_FULL tanpa menghapus keikutsertaan
+// di kelas asal, tanpa mengubah enrolled_count, dan tanpa menulis event swapped.
+func TestSwapEndpoint_DestinationFull_RollsBack(t *testing.T) {
+	a := newAPI(t)
+	fromCourse := seedCourse(t, 3, 40)
+	toCourse := seedCourse(t, 3, 1)
+	student := seedStudent(t)
+	otherStudent := seedStudent(t)
+
+	if status, code := a.enroll(t, student, fromCourse.ID); status != http.StatusCreated {
+		t.Fatalf("pendaftaran kelas asal: dapat %d %s, seharusnya 201", status, code)
+	}
+	if status, code := a.enroll(t, otherStudent, toCourse.ID); status != http.StatusCreated {
+		t.Fatalf("pengisian kuota kelas tujuan: dapat %d %s, seharusnya 201", status, code)
+	}
+
+	status, code := a.swap(t, student, fromCourse.ID, toCourse.ID)
+	if status != http.StatusConflict || code != "COURSE_FULL" {
+		t.Fatalf("swap ke kelas penuh: dapat %d %s, seharusnya 409 COURSE_FULL", status, code)
+	}
+
+	inFrom := countRows(t, `SELECT COUNT(*) FROM enrollments WHERE user_id = $1 AND course_id = $2`, student.ID, fromCourse.ID)
+	if inFrom != 1 {
+		t.Errorf("keikutsertaan di kelas asal = %d, seharusnya tetap 1", inFrom)
+	}
+	inTo := countRows(t, `SELECT COUNT(*) FROM enrollments WHERE user_id = $1 AND course_id = $2`, student.ID, toCourse.ID)
+	if inTo != 0 {
+		t.Errorf("keikutsertaan di kelas tujuan = %d, seharusnya 0", inTo)
+	}
+
+	fromEnrolled := countRows(t, `SELECT enrolled_count FROM courses WHERE id = $1`, fromCourse.ID)
+	if fromEnrolled != 1 {
+		t.Errorf("enrolled_count kelas asal = %d, seharusnya tetap 1", fromEnrolled)
+	}
+	toEnrolled := countRows(t, `SELECT enrolled_count FROM courses WHERE id = $1`, toCourse.ID)
+	if toEnrolled != 1 {
+		t.Errorf("enrolled_count kelas tujuan = %d, seharusnya tetap 1", toEnrolled)
+	}
+
+	swappedEvents := countRows(t,
+		`SELECT COUNT(*) FROM outbox WHERE (payload->>'user_id')::INT = $1 AND event_type = $2`,
+		student.ID, model.EventEnrollmentSwapped)
+	if swappedEvents != 0 {
+		t.Errorf("event enrollment.swapped = %d, seharusnya 0", swappedEvents)
+	}
+}
+
+// TestDropEndpoint_Success_UpdatesCountAndOutbox memastikan DELETE /courses/:id/enroll
+// mengembalikan 204, menghapus baris enrollment, mengurangi enrolled_count satu,
+// dan mencatat tepat satu event enrollment.dropped di outbox.
+func TestDropEndpoint_Success_UpdatesCountAndOutbox(t *testing.T) {
+	a := newAPI(t)
+	course := seedCourse(t, 3, 40)
+	student := seedStudent(t)
+
+	if status, code := a.enroll(t, student, course.ID); status != http.StatusCreated {
+		t.Fatalf("pendaftaran awal: dapat %d %s, seharusnya 201", status, code)
+	}
+
+	status, code := a.drop(t, student, course.ID)
+	if status != http.StatusNoContent {
+		t.Fatalf("drop kelas: dapat %d %s, seharusnya 204", status, code)
+	}
+
+	remaining := countRows(t, `SELECT COUNT(*) FROM enrollments WHERE user_id = $1 AND course_id = $2`, student.ID, course.ID)
+	if remaining != 0 {
+		t.Errorf("sisa baris enrollments = %d, seharusnya 0", remaining)
+	}
+
+	enrolledCount := countRows(t, `SELECT enrolled_count FROM courses WHERE id = $1`, course.ID)
+	if enrolledCount != 0 {
+		t.Errorf("enrolled_count = %d, seharusnya 0", enrolledCount)
+	}
+
+	droppedEvents := countRows(t,
+		`SELECT COUNT(*) FROM outbox WHERE (payload->>'user_id')::INT = $1 AND (payload->>'course_id')::INT = $2 AND event_type = $3`,
+		student.ID, course.ID, model.EventEnrollmentDropped)
+	if droppedEvents != 1 {
+		t.Errorf("event enrollment.dropped = %d, seharusnya 1", droppedEvents)
 	}
 }

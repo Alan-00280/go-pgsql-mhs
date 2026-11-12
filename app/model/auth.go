@@ -38,3 +38,9 @@ type AuthUser struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
 }
+
+// MeResponse adalah isi field data pada GET /auth/me.
+type MeResponse struct {
+	User        User     `json:"user"`
+	Permissions []string `json:"permissions"`
+}

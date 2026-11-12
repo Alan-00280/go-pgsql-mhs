@@ -223,6 +223,17 @@ func (s *AuthHandler) Refresh(c *fiber.Ctx) error {
 //
 //	 POST /auth/logout
 //		ambil ctx, cek body JSON, cek refreshToken, Revoke Token, return helper.Success
+//
+// Logout godoc
+//
+// @Summary      Logout dan mencabut refresh token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      model.RefreshReq  true  "Refresh token yang dicabut"
+// @Success      200   {object}  model.WebResponse
+// @Failure      400   {object}  model.ErrorRespone  "Body bukan JSON yang valid"
+// @Router       /auth/logout [post]
 func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -243,6 +254,16 @@ func (s *AuthHandler) Logout(c *fiber.Ctx) error {
 //
 //	 GET /auth/me
 //		ambil ctx, ambil current user pakai helper function, return helper.success dengan user
+//
+// Me godoc
+//
+// @Summary      Profil user yang sedang login beserta daftar permission-nya
+// @Tags         auth
+// @Produce      json
+// @Success      200  {object}  model.WebResponse{data=model.MeResponse}
+// @Failure      401  {object}  model.ErrorRespone  "Belum terautentikasi atau user tidak ditemukan"
+// @Security     BearerAuth
+// @Router       /auth/me [get]
 func (s *AuthHandler) Me(c *fiber.Ctx) error {
 	ctx, cancel := helper.ReqCtx(c)
 	defer cancel()
@@ -257,9 +278,9 @@ func (s *AuthHandler) Me(c *fiber.Ctx) error {
 		return helper.Unauthorized("user tidak ditemukan")
 	}
 
-	return helper.Ok(c, "user berhasil ditemukan", fiber.Map{
-		"user":        user,
-		"permissions": s.perms.PermissionsOf(user.Role),
+	return helper.Ok(c, "user berhasil ditemukan", model.MeResponse{
+		User:        user,
+		Permissions: s.perms.PermissionsOf(user.Role),
 	})
 }
 

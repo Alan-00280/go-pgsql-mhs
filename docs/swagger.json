@@ -109,6 +109,87 @@
                 }
             }
         },
+        "/auth/logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout dan mencabut refresh token",
+                "parameters": [
+                    {
+                        "description": "Refresh token yang dicabut",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.RefreshReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.WebResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Body bukan JSON yang valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Profil user yang sedang login beserta daftar permission-nya",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MeResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Belum terautentikasi atau user tidak ditemukan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/refresh": {
             "post": {
                 "description": "Refresh token lama langsung dicabut (rotation).",
@@ -677,6 +758,69 @@
                 }
             }
         },
+        "/courses/{id}/reviews/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Ringkasan statistik ulasan sebuah kelas",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID kelas",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.ReviewSummary"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID harus berupa angka positif",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Kelas tidak ditemukan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
         "/enrollments/swap": {
             "post": {
                 "security": [
@@ -790,9 +934,931 @@
                     }
                 }
             }
+        },
+        "/reviews/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Detail satu ulasan berdasarkan ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID ulasan (ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.Review"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID ulasan tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Ulasan tidak ditemukan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Pemilik ulasan atau moderator (permission review:moderate) dapat menghapus ulasan.",
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Menghapus ulasan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID ulasan (ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Ulasan berhasil dihapus; tanpa body"
+                    },
+                    "400": {
+                        "description": "ID ulasan tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Bukan pemilik ulasan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Mengubah ulasan milik sendiri",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID ulasan (ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Field ulasan yang diperbarui",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.UpdateReviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.Review"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID, JSON tidak valid, atau tidak ada field yang diubah",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Bukan pemilik ulasan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi gagal",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/reviews/{id}/helpful": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Menandai ulasan sebagai membantu (helpful)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID ulasan (ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.Review"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID ulasan tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "409": {
+                        "description": "OWN_REVIEW atau ALREADY_VOTED",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/reviews/{id}/replies": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reviews"
+                ],
+                "summary": "Menambahkan balasan ke sebuah ulasan",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID ulasan (ObjectID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Isi balasan",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ReplyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.Review"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL ulasan induk"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "ID atau JSON tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "409": {
+                        "description": "REPLY_LIMIT",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi gagal",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Membutuhkan permission user:list. Mendukung content negotiation JSON (default) atau CSV melalui header Accept: text/csv.",
+                "produces": [
+                    "application/json",
+                    "text/csv"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Daftar user dengan cursor pagination",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cari username atau email",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter berdasarkan role",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter status aktif",
+                        "name": "is_active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor halaman berikutnya (meta.next_cursor)",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponseCursor"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/model.User"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "406": {
+                        "description": "Header Accept tidak didukung",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Membutuhkan permission user:update:any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Membuat user baru (admin)",
+                "parameters": [
+                    {
+                        "description": "Data user baru",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "URL user yang baru dibuat"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "JSON tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "409": {
+                        "description": "Data sudah digunakan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi gagal",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Diakses oleh pemilik akun atau user dengan permission user:read:any.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Detail satu user berdasarkan ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID user",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Diakses oleh pemilik akun atau user dengan permission user:update:any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Memperbarui seluruh data user (PUT)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID user",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Data lengkap user",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.ReplaceUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID atau JSON tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi gagal",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Membutuhkan permission user:delete dan tidak dapat menghapus akun sendiri.",
+                "tags": [
+                    "users"
+                ],
+                "summary": "Menghapus user berdasarkan ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID user",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "User berhasil dihapus; tanpa body"
+                    },
+                    "400": {
+                        "description": "ID tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Diakses oleh pemilik akun atau user dengan permission user:update:any.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Memperbarui sebagian data user (PATCH)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID user",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Field user yang diperbarui",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.PatchUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID, JSON tidak valid, atau body kosong",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "409": {
+                        "description": "Data sudah digunakan",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Validasi gagal",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{id}/role": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Membutuhkan permission role:assign. Tidak dapat mengubah role akun sendiri.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Mengubah role milik user",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "ID user",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Role baru",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.AssignRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.WebResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "ID atau JSON tidak valid",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    },
+                    "422": {
+                        "description": "Role tidak valid atau target adalah akun sendiri",
+                        "schema": {
+                            "$ref": "#/definitions/model.ErrorRespone"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "model.AssignRoleRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            }
+        },
         "model.Course": {
             "type": "object",
             "properties": {
@@ -848,6 +1914,44 @@
                 }
             }
         },
+        "model.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 120
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 8
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3
+                }
+            }
+        },
+        "model.CursorMeta": {
+            "type": "object",
+            "properties": {
+                "has_more": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "next_cursor": {
+                    "type": "string"
+                }
+            }
+        },
         "model.ErrorRespone": {
             "type": "object",
             "properties": {
@@ -883,6 +1987,20 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "model.MeResponse": {
+            "type": "object",
+            "properties": {
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user": {
+                    "$ref": "#/definitions/model.User"
                 }
             }
         },
@@ -943,6 +2061,23 @@
                 },
                 "user_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "model.PatchUserRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 120
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3
                 }
             }
         },
@@ -1035,6 +2170,27 @@
                 }
             }
         },
+        "model.ReplaceUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "maxLength": 120
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3
+                }
+            }
+        },
         "model.Reply": {
             "type": "object",
             "properties": {
@@ -1052,6 +2208,19 @@
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "model.ReplyRequest": {
+            "type": "object",
+            "required": [
+                "body"
+            ],
+            "properties": {
+                "body": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "minLength": 2
                 }
             }
         },
@@ -1133,6 +2302,32 @@
                 }
             }
         },
+        "model.ReviewSummary": {
+            "type": "object",
+            "properties": {
+                "average_rating": {
+                    "type": "number"
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "course_id": {
+                    "type": "integer"
+                },
+                "distribution": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "top_tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.TagCount"
+                    }
+                }
+            }
+        },
         "model.SwapRequest": {
             "type": "object",
             "required": [
@@ -1147,6 +2342,17 @@
                 "to_course_id": {
                     "type": "integer",
                     "minimum": 1
+                }
+            }
+        },
+        "model.TagCount": {
+            "type": "object",
+            "properties": {
+                "tag": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -1186,6 +2392,28 @@
                 }
             }
         },
+        "model.UpdateReviewRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "minLength": 10
+                },
+                "rating": {
+                    "type": "integer",
+                    "maximum": 5,
+                    "minimum": 1
+                },
+                "tags": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "model.User": {
             "type": "object",
             "properties": {
@@ -1219,6 +2447,22 @@
                 },
                 "meta": {
                     "$ref": "#/definitions/model.Meta"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.WebResponseCursor": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "errors": {},
+                "message": {
+                    "type": "string"
+                },
+                "meta": {
+                    "$ref": "#/definitions/model.CursorMeta"
                 },
                 "success": {
                     "type": "boolean"
